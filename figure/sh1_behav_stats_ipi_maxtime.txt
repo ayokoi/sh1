@@ -1,0 +1,8 @@
+comparison	mean1	SD1	mean2	SD2	df	tval	pval
+within- vs. between-chunk ipi on day 5          	 220.1501	  62.38387	 385.6886	 92.82815	11	-5.72835	0.00013253
+Paired t-test for Kendall's \tau (z-transformed)	0.3906545	0.06777622	0.1253575	0.1053734	11	 10.0819	6.8141e-07
+Paired t-test for Pearson's r (z-transformed)   	0.6707684	 0.0904917	0.2010993	0.1602744	11	 9.21939	1.6551e-06
+within vs. non-within (trained)                 	 280.2868	  121.9661	 347.8572	 124.4564	11	-4.99952	0.00040284
+within vs. non-within (chunk reordered)         	 274.7704	   120.211	 419.1816	 128.8499	11	-4.86407	0.00049941
+within vs. non-within (chunk+new)               	 352.8283	  139.4541	 408.1723	 143.6861	 9	-4.25284	 0.0021335
+non-within (trained) vs. non-within (others)    	 347.8572	  124.4564	 411.5806	 127.3691	11	-6.34825	5.4582e-05
