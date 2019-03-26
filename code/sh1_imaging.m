@@ -4,21 +4,28 @@ function varargout = sh1_imaging(what, varargin);
 %   - run pattern component modeling (pcm) on each cortical surface patch
 %   - run representational clustering
 %   - display results on flat surface
-% Note: 
+% Note:
 %   - for visualization (e.g., flattned map) smoothing is applied for
 %       purely visual aesthetic purpose.
 %   - no smoothing is applied for statistical analyses
-% 
+%
+% Usage
+%   - sh1_imaging(action, options)
+%   - action can be following string inputs;
+%       - 'Figure5'
+%       - 'Figure6'
+%       - etc.
+%
 % ayokoi (2019) at.yokoi.work@gmail.com
 
 
 %% Path etc.
 baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/data'; % external HDD 2
 F.baseDir = baseDir;
-%F.pwhBeta = fullfile(baseDir,'SurfPatch_pwhBeta.mat'); % pre-whitened beta for each cortical surface patch
-% this is due to Github's file size limitation (500MB per single file)
 F.pwhBeta_individ = fullfile(baseDir,'SurfPatch_pwhBeta_s%02d.mat'); % pre-whitened beta for each cortical surface patch
-F.SPM_individ = fullfile(baseDir, 'SPM_s%02d.mat'); % reduced SPM structure to optimally estimate second moment matrix
+% As Github has 500MB size limitation for single file, concatenated pre-whitened activity data
+% for all participants is not saved.
+F.RDM = fullfile(baseDir, 'SurfPatch_RDM.mat'); % pre-calculated RDM for all patches, for all subjects
 F.modeldesign = fullfile(baseDir,'pcmDesign.mat'); % representational models and experimental design info (necessary for pcm)
 F.pcmResult = fullfile(baseDir,'pcmResult.mat'); % result file for pcm
 F.coord = {fullfile(baseDir,'lh.FLAT.coord'), fullfile(baseDir,'rh.FLAT.coord')}; % flattened surface (fsaverage_sym)
@@ -27,9 +34,14 @@ F.shape = {fullfile(baseDir,'lh.surface_shape'),fullfile(baseDir,'rh.surface_sha
 F.border = {fullfile(baseDir,'lh.All.borderproj'),fullfile(baseDir,'rh.All.borderproj')}; % flattened surface (fsaverage_sym)
 F.p2n = fullfile(baseDir,'patch2node.mat'); % node assignment for each patch
 F.meandist = fullfile(baseDir, {'lh.meanDist.metric','rh.meanDist.metric'}); % mean crossnobis distance computed on continuous searchlight
-F.cuelabel = fullfile(baseDir,'***.mat'); % sequence-cue association for each participant
-F.pwhBeta_cluster = fullfile(baseDir, 'Cluster_10corr_pwhBeta.mat'); % prewhitened beta for cluster (10 solutions)
+F.pwhBeta_cluster = fullfile(baseDir, 'Cluster_corr10_pwhBeta.mat'); % prewhitened beta for cluster (10 solutions)
 F.cluster = fullfile(baseDir, 'Cluster_10corr.mat');
+F.clustercolor = fullfile(baseDir,'10ClusterColors.mat');
+F.ceilingCluster = fullfile(baseDir,'noiseceiling_10cluster.mat');
+F.ceilingCluster_relabel = fullfile(baseDir,'noiseceiling_10cluster_relabel.mat');
+F.design_relabel = fullfile(baseDir,'pcmDesign_visualcue.mat');
+
+% set path for functions
 
 % other parameters for figure
 plotrange = {{[-79.8252,104.7103],[-64.1677,81.5173-10]},...
@@ -38,28 +50,304 @@ goldorange  = [243,152,0]/255;
 magenta     = [228,0,127]/255;
 pink = [255,192,203]/255;
 cyan        = [0,104,183]/255;
+maxclust = 10;
+clabel10 = [6,5,2,7,9,1,3,8,4,10]; % labeling for cluster (10 solution)
 
 %% Main
 switch (what)
-    case 'concat_pwhbeta'   % Concatenate pre-whitened beta for all subjects into single file
-        % Look for data
-        if exist(F.pwhBeta, 'file');
-            T = load(F.pwhBeta);
-        else % Load, concat, and save
-            T = [];
-            for s=1:12
-                D = load(sprintf(F.pwhBeta_individ, s));
-                T = addstruct(T,D);
-            end;
-            save(F.pwhBeta, '-struct','T','-v7.3');
+    case 'Figure5c'             % Plot noise-ceiling map
+        % load result
+        R = sh1_imaging('run_pcm');
+        
+        load(F.p2n); % patch-node mapping
+        
+        % condence to plot group mean
+        R = tapply(R, {'hemis','patch','nodeID'}, {'noiseceiling','nanmean(x,1)', 'name', 'noiseceiling'},...
+            {'pxp_ceiling','nanmean(x,1)','name','pxp'});
+        
+        % map pxp and get mask
+        patchdata = R.pxp;
+        nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+        nodedatapxp(nodedatapxp<=0.75)=NaN;
+        map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
+            'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,...
+            'label','PXP(noise-ceiling)','distfile',F.meandist);
+        
+        % map logBF (noise-ceiling)
+        patchdata = R.noiseceiling;
+        nodedatabf = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+        nodedatabf(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
+        map_fsaverage(nodedatabf, F.coord, F.topo, F.shape, F.border,...
+            'threshold', [1,10], 'MAP', 'jet','plotrange', plotrange,...
+            'label','logBF(noise-ceiling)','distfile',F.meandist);
+        
+        % print figure
+        
+        varargout = {};
+    case 'Figure6abc'           % Plot logBFc map
+        % load result
+        R = sh1_imaging('run_pcm');
+        
+        load(F.p2n); % patch-node mapping
+        
+        % condence to plot group mean
+        R = tapply(R, {'hemis','patch','nodeID'}, {'logBFc','nanmean(x,1)', 'name', 'logBFc'},...
+            {'pxp','nanmean(x,1)','name','pxp'});
+        
+        % do flatmap
+        models = {'First-finger','Chunk','Sequence'};
+        for i=1:3
+            % map pxp and get mask
+            patchdata = R.pxp(:,i);
+            nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
+            map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
+                'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,'label',sprintf('PXP(%s)',models{i}));
+            
+            % map logBF (noise-ceiling)
+            patchdata = R.logBFc(:,i);
+            %patchdata(R.pxp(:,i)<0.75)=-inf;
+            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
+            nodedatabfc(nodedatapxp<=0.75) = NaN;
+            map_fsaverage(nodedatabfc, F.coord, F.topo, F.shape, F.border,...
+                'threshold', [1,3], 'MAP', 'parula','plotrange', plotrange,...
+                'label',sprintf('logBFc(%s)',models{i}),'distfile',F.meandist);
         end
+    case 'Figure6d'             % Plot merged map
+        % load
+        if exist(F.pcmResult, 'file');
+            R = load(F.pcmResult);
+        else
+            R = sh1_imaging('run_pcm');
+        end
+        load(F.p2n); % patch-node mapping
+        
+        % condence to plot group mean
+        R = tapply(R, {'hemis','patch','nodeID'}, {'logBFc','nanmean(x,1)', 'name', 'logBFc'},...
+            {'pxp','nanmean(x,1)','name','pxp'});
+        
+        % do merged flatmap
+        models = {'First-finger','Chunk','Sequence'};
+        for i=1:3
+            nodedatapxp = assign_patch2node(R.pxp(:,i), R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+            % map logBF (noise-ceiling)
+            patchdata = R.logBFc(:,i); %.*double(R.pxp(:,i)>0.75);
+            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+            nodedatabfc(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
+            nodedata(:,:,i) = nodedatabfc;
+        end
+        nodedata = permute(nodedata, [1,3,2]);
+        MAPs = {repmat(cyan,100,1), repmat(magenta,100,1),repmat(goldorange,100,1)};
+        map_fsaverage_multi(nodedata, F.coord, F.topo, F.shape, F.border,...
+            'threshold', [1,3], 'MAP', MAPs,'plotrange', plotrange,'label',sprintf('logBFc(merged)'),...
+            'distfile',F.meandist);
+    case 'Figure6fg'           % Plot scatter plot (overlap analyses)
+        % load result
+        R = sh1_imaging('run_pcm');
+        
+        % condence to plot group mean
+        R = tapply(R, {'hemis','patch','nodeID'}, {'noiseceiling','nanmean(x,1)', 'name', 'noiseceiling'},...
+            {'logBFc','nanmean(x,1)','name','bfc'},{'pxp','nanmean(x,1)','name','pxp'});
+        
+        % cases
+        pxpok(:,1) = R.pxp(:,1)>0.75; % first finger
+        pxpok(:,2) = R.pxp(:,2)>0.75; % chunk
+        pxpok(:,3) = R.pxp(:,3)>0.75; % sequence
+        bfcok(:,1) = R.bfc(:,1)>1; % first finger
+        bfcok(:,2) = R.bfc(:,2)>1; % chunk
+        bfcok(:,3) = R.bfc(:,3)>1; % sequence
+        present = pxpok.*bfcok;
+        
+        category=present(:,1)+present(:,2)*2+present(:,3)*4; % Binary-based code 0-7
+        % 0: None
+        % 1: F
+        % 2: C
+        % 3: F+C
+        % 4: S
+        % 5: F+S
+        % 6: C+S
+        % 7: F+C+S
+        
+        % test overlap
+        pivottable(category,[],category,'length','subset',ismember(R.hemis,[1,2]) & R.noiseceiling>1);
+        [M,C]=pivottable(category,[],category,'length','subset',ismember(R.hemis,[1,2]) & R.noiseceiling>1);
+        % first-finger and others
+        [G_f, p_f, exp_f, obs_f] = Gtest([M(C==0), M(C==1), sum(M(C==2|C==4|C==6)), sum(M(C==3|C==5|C==7))]);
+        % chunk and sequence
+        [G_cs, p_cs, exp_cs, obs_cs] = Gtest([M(C==0), M(C==2), M(C==4), M(C==6)]);
+        stats.name = {'first-finger vs. others','chunk vs. sequence'}';
+        stats.expected_overlap = [exp_f(end);exp_cs(end)];
+        stats.observed_overlap = [obs_f(end);obs_cs(end)];
+        stats.Gvalue = [G_f; G_cs];
+        stats.Pvalue = [p_f; p_cs];
+        struct2table(stats)
+        
+        % figure;
+        h=myFigure([25*3/2,15/sqrt(2)]);
+        
+        subplot(1,3,1); % venn diagram
+        axis square; title({'Venn diagram', '(not handled for this implementation)'});
+        % You can draw it manually
+        
+        % Scatter plot
+        subplot(1,3,2); % ff vs seq
+        colors = {cyan, magenta, pink, goldorange};
+        catname = {'F', 'C', 'F+C', 'C+S', 'S'};
+        catname = {'F', 'C', 'F+C', 'S', 'S+F', 'C+S', 'F+C+S'};
+        colors = {cyan, magenta, 'k', goldorange, 'k', pink, 'w'};
+        subset = R.noiseceiling>1;
+        R=getrow(R, category>0); % remove 'N' patches
+        subset=subset(category>0);
+        category=category(category>0);
+        scatterplot(R.bfc(subset,1),R.bfc(subset,3),...
+            'split', category(subset),...
+            'markertype','o',...
+            'markersize', {10,10,10,10},...
+            'markerfill',colors(C(C>0)),...
+            'markercolor',{'k','k','k','k'},...
+            'leg',catname(C(C>0)),'leglocation','best'); box off; hold on;
+        axis square; %title('title');
+        xlabel('logBFc (first-finger)'); ylabel('logBFc (sequence)');
+        set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
+        
+        subplot(1,3,3); % ch vs seq
+        scatterplot(R.bfc(:,2),R.bfc(:,3),...
+            'split', category.*subset,...
+            'markertype','o',...
+            'markersize', {10,10,10,10},...
+            'markerfill',colors(C(C>0)),...
+            'markercolor',{'k','k','k','k'}); box off; hold on;
+        axis square; %title('title');
+        xlabel('logBFc (chunk)'); ylabel('logBFc (sequence)');
+        set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
+        
+        varargout = {stats};
+    case 'Figure7b'             % Plot clustering result map
+        % load clustering result
+        [clusters,Lap,LapEigVec,Idx] = sh1_imaging('run_clustering');
+        
+        % load color (for more or less clusters than 10, colors should be additionally defined)
+        load(F.clustercolor);
+        
+        % map
+        load(F.p2n); % patch-node mapping
+        for i=1:max(clusters)
+            nodedata(:,:,i) = assign_patch2node(double(clusters==i), Idx.hemis, Idx.patch, SLnodes,'smooth',1,'F',F);
+            MAPs{i} = colors(i,:);
+        end
+        nodedata = permute(nodedata, [1,3,2]);
+        map_fsaverage_multi(nodedata, F.coord, F.topo, F.shape, F.border,...
+            'threshold', [0.7,1], 'MAP', MAPs,'plotrange', plotrange,'label',sprintf('Clusters'),...
+            'distfile',F.meandist,'alpha',0.9);
+    case 'Figure7c'             % Plot Marimekko chart (mosaic plot)
+        % load clustering result
+        [clusters,Lap,LapEigVec,Idx] = sh1_imaging('run_clustering');
+        Idx.cluster=clabel10(clusters)';
+        Idx=tapply(Idx,{'hemis','patch','nodeID'}, {'cluster','nanmean','name','cluster'});
+        
+        % load pcm result
+        if exist(F.pcmResult, 'file');
+            R = load(F.pcmResult);
+        else
+            R = sh1_imaging('run_pcm');
+        end
+        % count cases
+        R = tapply(R, {'hemis','patch','nodeID'}, {'noiseceiling','nanmean(x,1)', 'name', 'noiseceiling'},...
+            {'logBFc','nanmean(x,1)','name','bfc'},{'pxp','nanmean(x,1)','name','pxp'});
+        pxpok(:,1) = R.pxp(:,1)>0.75; % first finger
+        pxpok(:,2) = R.pxp(:,2)>0.75; % chunk
+        pxpok(:,3) = R.pxp(:,3)>0.75; % sequence
+        bfcok(:,1) = R.bfc(:,1)>1; % first finger
+        bfcok(:,2) = R.bfc(:,2)>1; % chunk
+        bfcok(:,3) = R.bfc(:,3)>1; % sequence
+        present = pxpok.*bfcok;
+        
+        category=present(:,1)+present(:,2)*2+present(:,3)*4; % Binary-based code 0-7
+        % 0: None
+        % 1: F
+        % 2: C
+        % 3: F+C
+        % 4: S
+        % 5: F+S
+        % 6: C+S
+        % 7: F+C+S
+        category(category==6)=3; % just for reordering
+        
+        % plot
+        edgecolor = 'none';
+        linewidth = 1;
+        row=category;
+        col = Idx.cluster;
+        ilc = R.noiseceiling>1;
+        facecolor = {cyan, magenta, pink, goldorange, [0.8,0.8,0.8]};
+        rowleg = {'F','C','C+S','S'};
+        for c=1:max(clusters);
+            colleg{c} = sprintf('%d', c);
+        end
+        colleg{7} = ''; % for preventing visual cluttering
+        colleg{9} = '';
+        
+        [M, Rh,Ch,xcenter,xrange]=mosaicplot(row, col, ones(size(row)),...
+            'facecolor', facecolor,...
+            'rowlabel', [],...
+            'columnlabel', [],...
+            'columnlabelrotation', 0,...
+            'edgecolor', edgecolor,...
+            'linewidth',linewidth,...
+            'textcolor','w',...
+            'subset', row>0&ilc,...
+            'leg', rowleg,...
+            'leglocation','southoutside');
+        title({'Cortical "storage" of sequence representations',''});
+        axis on;
+        xlabel('Clusters');
+        set(gca,'ycolor','none','xtick',xcenter,'xticklabel',colleg,'xlim',xrange,...
+            'tickdir','out','ylim',[-0.01,1.05]);
+    case 'Figure7d'             % Plot relabeling result
+        % load relabeling result
+        S=sh1_imaging('est_noiseceiling_cluster_relabel');
+        S.cluster=clabel10(S.cluster)';
+        
+        % load original result
+        US=sh1_imaging('est_noiseceiling_cluster');
+        US.cluster=clabel10(US.cluster)';
+        
+        % load color (for more or less clusters than 10, colors should be additionally defined)
+        load(F.clustercolor);
+        for c=1:maxclust
+            cols{clabel10(c)} = colors(c,:);
+            label{c} = sprintf('%d',c);
+        end
+        % plot
+        CAT.facecolor = cols;
+        CAT.edgecolor = 'k';
+        CAT.linecolor = 'k';
+        CAT.linewidth = 1;
+        Y=S.noiseceiling./US.noiseceiling;
+        
+        [xpos,ypos,e]=barplot(S.cluster, Y, 'subset', isfinite(Y),...
+            'CAT', CAT,...
+            'gapwidth', [0.5,0.5],'split',S.cluster,'capwidth', 0.001);
+        drawline(1,'dir','horiz');
+        ylabel({'logBF-ratio'});  xlabel({'Clusters'});
+        title('Relabeling impact on noise-ceiling');
+        set(gca,'ytick',[0:0.5:2],'ylim',[0,2],...
+            'xtick',[xpos],'xticklabel',label);
+        set(gca,'tickdir','out','ticklength',[0.02,0.01]);
+    
+    case 'following parts could have been local functions instead'
+    case 'concat_pwhbeta'   % Concatenate pre-whitened beta for all subjects into single file
+        T = [];
+        for s=1:12
+            D = load(sprintf(F.pwhBeta_individ, s));
+            T = addstruct(T,D);
+        end;
         varargout = {T};
     case 'run_pcm'              % Run pcm on each surface patch
         if exist(F.pcmResult, 'file');
             R = load(F.pcmResult);
         else
             % load data
-            Data = load(F.pwhBeta); % concatenated file
+            Data = sh1_imaging('concat_pwhbeta');%load(F.pwhBeta); % concatenated file
             
             % load design
             load(F.modeldesign); % FCS family
@@ -129,260 +417,114 @@ switch (what)
             save(F.pcmResult, '-struct', 'R');
         end
         varargout = {R};
-    case 'Figure5c'             % Plot noise-ceiling map
-        % load
-        if exist(F.pcmResult, 'file');
-            R = load(F.pcmResult);
-        else
-            R = sh1_imaging('run_pcm');
-        end
-        load(F.p2n); % patch-node mapping
-        
-        % condence to plot group mean
-        R = tapply(R, {'hemis','patch','nodeID'}, {'noiseceiling','nanmean(x,1)', 'name', 'noiseceiling'},...
-            {'pxp_ceiling','nanmean(x,1)','name','pxp'});
-        
-        % map pxp and get mask
-        patchdata = R.pxp;
-        nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
-        nodedatapxp(nodedatapxp<=0.75)=NaN;
-        map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
-            'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,'label','PXP(noise-ceiling)');
-        
-        % map logBF (noise-ceiling)
-        patchdata = R.noiseceiling;
-        %patchdata(R.pxp<0.75)=-inf;
-        nodedatabf = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
-        nodedatabf(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
-        map_fsaverage(nodedatabf, F.coord, F.topo, F.shape, F.border,...
-            'threshold', [1,10], 'MAP', 'parula','plotrange', plotrange,'label','logBF(noise-ceiling)');
-        
-        % print figure
-        
-        varargout = {};
-    case 'Figure6abc'           % Plot logBFc map
-        % load
-        if exist(F.pcmResult, 'file');
-            R = load(F.pcmResult);
-        else
-            R = sh1_imaging('run_pcm');
-        end
-        load(F.p2n); % patch-node mapping
-        
-        % condence to plot group mean
-        R = tapply(R, {'hemis','patch','nodeID'}, {'logBFc','nanmean(x,1)', 'name', 'logBFc'},...
-            {'pxp','nanmean(x,1)','name','pxp'});
-        
-        % do flatmap
-        models = {'First-finger','Chunk','Sequence'};
-        for i=1:3
-            % map pxp and get mask
-            patchdata = R.pxp(:,i);
-            nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
-            map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
-                'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,'label',sprintf('PXP(%s)',models{i}));
-            
-            % map logBF (noise-ceiling)
-            patchdata = R.logBFc(:,i);
-            %patchdata(R.pxp(:,i)<0.75)=-inf;
-            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
-            nodedatabfc(nodedatapxp<=0.75) = NaN;
-            map_fsaverage(nodedatabfc, F.coord, F.topo, F.shape, F.border,...
-                'threshold', [1,3], 'MAP', 'parula','plotrange', plotrange,...
-                'label',sprintf('logBFc(%s)',models{i}),'distfile',F.meandist);
-        end
-    case 'Figure6d'             % Plot merged map
-        % load
-        if exist(F.pcmResult, 'file');
-            R = load(F.pcmResult);
-        else
-            R = sh1_imaging('run_pcm');
-        end
-        load(F.p2n); % patch-node mapping
-        
-        % condence to plot group mean
-        R = tapply(R, {'hemis','patch','nodeID'}, {'logBFc','nanmean(x,1)', 'name', 'logBFc'},...
-            {'pxp','nanmean(x,1)','name','pxp'});
-        
-        % do merged flatmap
-        models = {'First-finger','Chunk','Sequence'};
-        for i=1:3
-            nodedatapxp = assign_patch2node(R.pxp(:,i), R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
-            % map logBF (noise-ceiling)
-            patchdata = R.logBFc(:,i); %.*double(R.pxp(:,i)>0.75);
-            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
-            nodedatabfc(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
-            nodedata(:,:,i) = nodedatabfc;
-        end
-        nodedata = permute(nodedata, [1,3,2]);
-        MAPs = {repmat(cyan,100,1), repmat(magenta,100,1),repmat(goldorange,100,1)};        
-        map_fsaverage_multi(nodedata, F.coord, F.topo, F.shape, F.border,...
-            'threshold', [1,3], 'MAP', MAPs,'plotrange', plotrange,'label',sprintf('logBFc(merged)'),...
-            'distfile',F.meandist);
-    case 'Figure6fg'           % Plot scatter plot (overlap analyses)
-        % load
-        if exist(F.pcmResult, 'file');
-            R = load(F.pcmResult);
-        else
-            R = sh1_imaging('run_pcm');
-        end
-        
-        % condence to plot group mean
-        R = tapply(R, {'hemis','patch','nodeID'}, {'noiseceiling','nanmean(x,1)', 'name', 'noiseceiling'},...
-            {'logBFc','nanmean(x,1)','name','bfc'},{'pxp','nanmean(x,1)','name','pxp'});
-        
-        % cases
-        pxpok(:,1) = R.pxp(:,1)>0.75; % first finger
-        pxpok(:,2) = R.pxp(:,2)>0.75; % chunk
-        pxpok(:,3) = R.pxp(:,3)>0.75; % sequence
-        bfcok(:,1) = R.bfc(:,1)>1; % first finger
-        bfcok(:,2) = R.bfc(:,2)>1; % chunk
-        bfcok(:,3) = R.bfc(:,3)>1; % sequence
-        present = pxpok.*bfcok;
-        
-        category=present(:,1)+present(:,2)*2+present(:,3)*4; % Binary-based code 0-7
-        % 0: None
-        % 1: F
-        % 2: C
-        % 3: F+C
-        % 4: S
-        % 5: F+S
-        % 6: C+S
-        % 7: F+C+S
-        
-        % test overlap
-        pivottable(category,[],category,'length','subset',ismember(R.hemis,[1,2]) & R.noiseceiling>1);
-        [M,C]=pivottable(category,[],category,'length','subset',ismember(R.hemis,[1,2]) & R.noiseceiling>1);
-        % first-finger and others
-        [G_f, p_f] = Gtest([M(C==0), M(C==1), sum(M(C==2|C==4|C==6)), sum(M(C==3|C==5|C==7))]);
-        % chunk and sequence
-        [G_cs, p_cs] = Gtest([M(C==0), M(C==2), M(C==4), M(C==6)]);
-        
-        % figure;
-        h=myFigure([25*3/2,15/sqrt(2)]);
-        
-        subplot(1,3,1); % venn diagram
-        axis square; title('Venn diagram');
-        % Do manually
-        
-        % Scatter plot
-        subplot(1,3,2); % ff vs seq
-        colors = {cyan, magenta, pink, goldorange};
-        catname = {'F', 'C', 'F+C', 'C+S', 'S'};
-        catname = {'F', 'C', 'F+C', 'S', 'S+F', 'C+S', 'F+C+S'};
-        colors = {cyan, magenta, 'k', goldorange, 'k', pink, 'w'};
-        subset = R.noiseceiling>1;
-        R=getrow(R, category>0); % remove 'N' patches
-        subset=subset(category>0);
-        category=category(category>0);
-        scatterplot(R.bfc(subset,1),R.bfc(subset,3),...
-            'split', category(subset),...
-            'markertype','o',...
-            'markersize', {10,10,10,10},...
-            'markerfill',colors(C(C>0)),...
-            'markercolor',{'k','k','k','k'},...
-            'leg',catname(C(C>0)),'leglocation','best'); box off; hold on;
-        axis square; %title('title');
-        xlabel('logBFc (first-finger)'); ylabel('logBFc (sequence)');
-        set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
-        
-        subplot(1,3,3); % ch vs seq
-        scatterplot(R.bfc(:,2),R.bfc(:,3),...
-            'split', category.*subset,...
-            'markertype','o',...
-            'markersize', {10,10,10,10},...
-            'markerfill',colors(C(C>0)),...
-            'markercolor',{'k','k','k','k'}); box off; hold on;
-        axis square; %title('title');
-        xlabel('logBFc (chunk)'); ylabel('logBFc (sequence)');
-        set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
-        
-        varargout = {};
-        
-    case 'run_clustering'       % Run spectral clustering 
+    case 'run_clustering'       % Run spectral clustering
         distfun='correlation'; % distance function defining adjacency matrices across patches
+        W=[];
         if exist(F.cluster,'file')
             load(F.cluster);
         else % do clustering
-            % contrast
-            Con = indicatorMatrix('allpairs',[1:8]);
-            % load design
-            load(F.modeldesign); % FCS family            
-            for s=1:12 % loop over subjects to prepare adjacency matrix
-                % load prewhitened beta
-                Data = load(sprintf(F.pwhBeta_individ,s));
-                % load (reduced) SPM structure
-                load(sprintf(F.SPM_individ,s));
+            % load RDM on each patch
+            T = load(F.RDM);
+            
+            for s=1:12
+                D = getrow(T,T.sn==s);
+                D = tapply(D, {'nodeID', 'hemis', 'patch'},...
+                    {'distance','nanmean(x,1)','name','distance'});
                 
-                % partition and condition 
-                partition = partitionVec{s};
-                Z = conditionVec{s}; condition=[];
-                for i=1:size(Z,1)
-                    condition(i,1)=find(Z(i,:)==1);
-                end
-                if max(condition)>8
-                    condition=condition-8;
-                end
+                % derive individual w
+                Dist = D.distance; % D.data is now Nroi x 28xNsubj matrix
                 
-                Dist = NaN(length(Data.hemis), size(Con,1)); % distance across patches
-                c=0;
-                for h=1:2 % loop over hemispheres x patches
-                    patches=unique(Data.patch(Data.hemis==h))';
-                    for p=patches
-                        c=c+1;
-                        data=getrow(Data, Data.hemis==h&Data.patch==p);
-                        pwhBeta = data.pwhBeta{1};
-                        if ~isempty(pwhBeta)
-                            % estimate cross-validated second moment matrix (G)
-                            G_hat = pcm_estGCrossval(pwhBeta, partition, condition, SPM.xX.xKXs.X);
-                            
-                            % compute a vector of pair-wise representational dissimilarity (d)
-                            d_hat = diag(Con*G_hat*Con');
-                            Dist(c,:) = d_hat';
-                        end
-                    end
-                end
                 % calculate adjacency matrix
-                badpatch=all(isnan(Dist),2);
-                tmp = squareform(pdist(Dist(~badpatch,:),distfun));
+                tmp = squareform(pdist(Dist,distfun));
                 M=tmp; % now in the form of distance
-                % transform into similarity 
+                % transform into similarity
                 sigma = quantile(squareform(tmp),0.05);
                 M = exp(-M.^2 ./ (2*sigma^2)); % Gaussian similarity transformation
-                W(~badpatch,~badpatch,s)=M;
-                W(badpatch,badpatch,s)=NaN;
+                W=cat(3,W,M);
+                fprintf('...done.\n');
             end
-            % take group-average first rather than individually running clustering
+            
+            % take group-average first rather than individual clustering
             W_avrg = nanmean(W,3);
             
             % do clustering
-            % C=clustering(W_avrg, Ncluster);
-            % save result
+            [clusters, Lap, LapEigVec] = clusterRDM_spectralClustering(W_avrg, maxclust);
             
+            % save result
+            Patch.hemis = D.hemis;
+            Patch.patch = D.patch;
+            Patch.nodeID = D.nodeID;
+            save(F.cluster, 'clusters','Lap','LapEigVec','Patch');
         end
-        varargout = {C};
-        
-    case 'run_relabeling'       % Run pcm (estimate noise-ceiling) with relabeling
-        if exist(F.pcmResult_relabel, 'file');
-            load(F.pcmResult_relabel);
+        varargout = {clusters,Lap,LapEigVec,Patch};
+    case 'est_noiseceiling_cluster'       % Run pcm (estimate noise-ceiling)
+        if exist(F.ceilingCluster, 'file');
+            S=load(F.ceilingCluster);
         else % do it from scratch
             % load prewhitened beta for cluster
+            load(F.pwhBeta_cluster); % this adds 'Data' and 'Design' in your workspace
+            
+            % load design and model
+            load(F.modeldesign);
+            MF=MF(1); % leave only null model
             
             % load relabelled design
+            %load(F.design_relabel); % this adds 'conditionVec' and 'partitionVec'
             
             % do PCM to estimate noise-ceiling
+            S = [];
+            for c=1:maxclust
+                data=getrow(Data, Data.cluster==c);
+                Yprewh=data.beta;
+                [~,Tcv] = runPCM(Yprewh, conditionVec, partitionVec, MF);
+                
+                % calc ceiling
+                like = bsxfun(@minus, Tcv.likelihood, Tcv.likelihood(:,1));
+                s.noiseceiling = like(:,end);
+                s.SN = Tcv.SN;
+                s.cluster = repmat(c,size(s.SN));
+                S = addstruct(S,s);
+            end
+            S.sort = ones(size(S.SN));
             
             % save relabelling result
-            
+            save(F.ceilingCluster, '-struct','S','-v7.3');
         end
-        varargout = {};
-        
-    case 'Figure7b'             % Plot clustering result map
-        
-    case 'Figure7c'             % Plot Marimekko chart (mosaic plot)
-        
-    case 'Figure7d'             % Plot relabeling result
-        
+        varargout = {S};
+    case 'est_noiseceiling_cluster_relabel'       % Run pcm (estimate noise-ceiling) with relabeling
+        if exist(F.ceilingCluster_relabel, 'file');
+            S=load(F.ceilingCluster_relabel);
+        else % do it from scratch
+            % load prewhitened beta for cluster
+            load(F.pwhBeta_cluster); % this adds 'Data' and 'Design' in your workspace
+            
+            % load design and model
+            load(F.modeldesign);
+            MF=MF(1); % leave only null model
+            
+            % load relabelled design
+            load(F.design_relabel); % this adds 'conditionVec' and 'partitionVec'
+            
+            % do PCM to estimate noise-ceiling
+            S = [];
+            for c=1:maxclust
+                data=getrow(Data, Data.cluster==c);
+                Yprewh=data.beta;
+                [~,Tcv] = runPCM(Yprewh, conditionVec, partitionVec, MF);
+                
+                % calc ceiling
+                like = bsxfun(@minus, Tcv.likelihood, Tcv.likelihood(:,1));
+                s.noiseceiling = like(:,end);
+                s.SN = Tcv.SN;
+                s.cluster = repmat(c,size(s.SN));
+                S = addstruct(S,s);
+            end
+            S.sort = ones(size(S.SN));
+            
+            % save relabelling result
+            save(F.ceilingCluster_relabel, '-struct','S','-v7.3');
+        end
+        varargout = {S};        
     otherwise
         warning('No such case.');
 end
@@ -449,20 +591,22 @@ for h=1:2
     ylims = [min(F.data(:,2)), max(F.data(:,2))]; % plot range (y)
     
     %subplot(1,2,h);
-    ax(h) = axes('position',axespositions{h});
+    ax(h) = axes('position',axespositions{h});    
     if ~isempty(distfile)
         M=caret_load(distfile{h});
         caret_plotflatmap_rgb('coord',coord,'topo',topo,...
             'underlay', depth, 'data', M.data(:,1), 'dscale', [0.03,10],'threshold',0.03,...
             'xlims', xlims, 'ylims', ylims,'dmap',hot(100),'alpha',alpha);
-        
-        caret_plotflatmap_rgb('coord',coord,'topo',topo,...
-            'underlay', depth, 'data', data(:,h), 'dscale', [0.03,10],'threshold',0.03,...
-            'xlims', xlims, 'ylims', ylims,'dmap',eval(MAP),'alpha',alpha,'idx',~isnan(data(:,h)));
+        idx = ~isnan(data(:,h))&data(:,h)>threshold(1);
+        [~,p]=caret_plotflatmap_rgb('coord',coord,'topo',topo,...
+            'underlay', depth, 'data', data(:,h), 'dscale', threshold,'threshold',threshold(1),...
+            'xlims', xlims, 'ylims', ylims,'dmap',eval(MAP),'alpha',alpha,'idx',idx);
+        %set(p,'facealpha',alpha);
     else
+        idx = ~isnan(data(:,h));
         caret_plotflatmap_rgb('coord',coord,'topo',topo,...
             'underlay', depth, 'data', data(:,h), 'dscale', threshold,'threshold',threshold(1),...
-            'xlims', xlims, 'ylims', ylims,'dmap',eval(MAP),'alpha',alpha);
+            'xlims', xlims, 'ylims', ylims,'dmap',eval(MAP),'alpha',alpha,'idx',idx);
     end
     
     axis equal; axis tight; axis off; hold on;
@@ -511,7 +655,7 @@ label = '';
 plotrange = {{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}};
 %isSave = 0;
 distfile = [];
-vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','isSave','plotrange','distfile'});
+vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','isSave','plotrange','distfile','alpha'});
 
 borderalighment={'left','right'};
 
@@ -562,7 +706,7 @@ for h=1:2
                 'xlims', xlims, 'ylims', ylims,'dmap',MAPs{col},'alpha',alpha,'idx',idx);
             set(p(col),'facealpha',alpha);
         end
-    end    
+    end
     axis equal; axis tight; axis off; hold on;
     set(gca, 'xlim',plotrange{h}{1},'ylim',plotrange{h}{2});
     
@@ -704,5 +848,5 @@ fprintf('Chi2:%2.2f\n',Chi2);
 fprintf('G:   %2.2f\n',G);
 fprintf('Crit:%2.2f\n',criticalValue);
 fprintf('p-val:%f\n',pval);
-varargout = {G, pval};
+varargout = {G, pval, ExpCounts, counts};
 end
