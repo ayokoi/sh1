@@ -10,10 +10,17 @@ function varargout=sh1_behavior(what,varargin)
 %
 
 %% Settings
-% path to data/result
+% path to data/result (for testing)
 baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare'; % external HDD 2
 analyzeDir 	= fullfile(baseDir, 'data');
 figDir      = fullfile(baseDir, 'figure');
+
+% path to data/result (for release)
+% thisfile = mfilename('fullpath');
+% baseDir = fileparts(thisfile);
+% analyzeDir 	= fullfile(baseDir, 'data');
+% figDir      = fullfile(baseDir, 'figure');
+
 
 % subject info
 subject_name = {{'sh1_t01','sh1_t02','sh1_s03','sh1_s04','sh1_s05','sh1_s07','sh1_s22'},... 

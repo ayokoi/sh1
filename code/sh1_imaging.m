@@ -20,10 +20,17 @@ function varargout = sh1_imaging(what, varargin);
 
 
 %% Path etc.
-baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/data'; % external HDD 2
+baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/data'; 
+% path to data/result (for release, uncomment following lines)
+% thisfile = mfilename('fullpath');
+% baseDir = fileparts(thisfile);
+% p={fullfile(baseDir,'code'), fullfile(baseDir,'code','caret')};
+% addpath(p); % path to necessary functions
+
+% File structure
 F.baseDir = baseDir;
 F.pwhBeta_individ = fullfile(baseDir,'SurfPatch_pwhBeta_s%02d.mat'); % pre-whitened beta for each cortical surface patch
-% As Github has 500MB size limitation for single file, concatenated pre-whitened activity data
+% As Github has 100MB size limitation for single file, concatenated pre-whitened activity data
 % for all participants is not saved.
 F.RDM = fullfile(baseDir, 'SurfPatch_RDM.mat'); % pre-calculated RDM for all patches, for all subjects
 F.modeldesign = fullfile(baseDir,'pcmDesign.mat'); % representational models and experimental design info (necessary for pcm)
@@ -34,7 +41,7 @@ F.shape = {fullfile(baseDir,'lh.surface_shape'),fullfile(baseDir,'rh.surface_sha
 F.border = {fullfile(baseDir,'lh.All.borderproj'),fullfile(baseDir,'rh.All.borderproj')}; % flattened surface (fsaverage_sym)
 F.p2n = fullfile(baseDir,'patch2node.mat'); % node assignment for each patch
 F.meandist = fullfile(baseDir, {'lh.meanDist.metric','rh.meanDist.metric'}); % mean crossnobis distance computed on continuous searchlight
-F.pwhBeta_cluster = fullfile(baseDir, 'Cluster_corr10_pwhBeta.mat'); % prewhitened beta for cluster (10 solutions)
+F.pwhBeta_cluster_individ = fullfile(baseDir, 'ClusterCorr10_pwhBeta_s%02d.mat'); % prewhitened beta for cluster (10 solutions)
 F.cluster = fullfile(baseDir, 'Cluster_10corr.mat');
 F.clustercolor = fullfile(baseDir,'10ClusterColors.mat');
 F.ceilingCluster = fullfile(baseDir,'noiseceiling_10cluster.mat');
@@ -55,6 +62,21 @@ clabel10 = [6,5,2,7,9,1,3,8,4,10]; % labeling for cluster (10 solution)
 
 %% Main
 switch (what)
+    case 'Figure4c'             % Plot mean distance map
+        % load result
+        for h=1:2
+            M = caret_load(F.meandist{h}); % mean crossnobis distance on continuous searchlight
+            crossnobis = M.data(:,1);
+            crossnobis(isnan(crossnobis)) = 0; % pad
+            nodedata(:,h) = crossnobis;            
+        end
+        % map mean distance
+        plotrange = {{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}}; % all surface
+        map_fsaverage(nodedata, F.coord, F.topo, F.shape, F.border,...
+            'threshold', [0.03,0.10], 'MAP', 'parula','plotrange', plotrange,...
+            'label','mean crossnobis dist.');
+        % save?
+        varargout = {};
     case 'Figure5c'             % Plot noise-ceiling map
         % load result
         R = sh1_imaging('run_pcm');
@@ -461,8 +483,12 @@ switch (what)
         if exist(F.ceilingCluster, 'file');
             S=load(F.ceilingCluster);
         else % do it from scratch
-            % load prewhitened beta for cluster
-            load(F.pwhBeta_cluster); % this adds 'Data' and 'Design' in your workspace
+            % load prewhitened beta for cluster and concat across subjects
+            Data = [];
+            for s=1:12
+                D=load(sprintf(F.pwhBeta_cluster_individ,s));
+                Data=addstruct(Data,D);
+            end
             
             % load design and model
             load(F.modeldesign);
@@ -495,8 +521,12 @@ switch (what)
         if exist(F.ceilingCluster_relabel, 'file');
             S=load(F.ceilingCluster_relabel);
         else % do it from scratch
-            % load prewhitened beta for cluster
-            load(F.pwhBeta_cluster); % this adds 'Data' and 'Design' in your workspace
+            % load prewhitened beta for cluster and concat across subjects
+            Data = [];
+            for s=1:12
+                D=load(sprintf(F.pwhBeta_cluster_individ,s));
+                Data=addstruct(Data,D);
+            end
             
             % load design and model
             load(F.modeldesign);
