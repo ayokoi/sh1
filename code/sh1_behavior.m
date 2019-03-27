@@ -2,24 +2,24 @@ function varargout=sh1_behavior(what,varargin)
 %% function varargout=sh1_behavior(what,varargin)
 % Do all behavioral data analyses and reproduce figures 
 % for Yokoi&Diedrichsen(2019) paper.
-%
-%
-%
-%
-%
-%
+% 
+% 
+% 
+% 
+% 
+% 
 
 %% Settings
 % path to data/result (for testing)
-baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare'; % external HDD 2
-analyzeDir 	= fullfile(baseDir, 'data');
-figDir      = fullfile(baseDir, 'figure');
-
-% path to data/result (for release)
-% thisfile = mfilename('fullpath');
-% baseDir = fileparts(thisfile);
+% baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare'; % external HDD 2
 % analyzeDir 	= fullfile(baseDir, 'data');
 % figDir      = fullfile(baseDir, 'figure');
+
+% path to data/result (for release)
+thisfile = mfilename('fullpath');
+baseDir = fileparts(thisfile);
+analyzeDir 	= fullfile(baseDir, 'data');
+figDir      = fullfile(baseDir, 'figure');
 
 
 % subject info
@@ -39,7 +39,8 @@ switch (what)
     case 'Figure_all' % draw all panels and save stat table
         ipitype = 'ipi_maxtime'; % 'ipi_onset'
         bgcolor = 'w'; % 'k'
-        vararginoptions(varargin,{'ipitype','bgcolor'});
+        saveresult=0;
+        vararginoptions(varargin,{'ipitype','bgcolor','saveresult'});
         
         % Create Figures
         % paper size: 8.5 x 11 inch (1 inch=2.54 cm)
@@ -100,10 +101,12 @@ switch (what)
         struct2table(stats4)
         
         % save figure and stats
-        print(fig1,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig1_%s.eps',ipitype)));
-        print(fig2,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig2_%s.eps',ipitype)));
-        dsave(fullfile(figDir,sprintf('sh1_behav_stats_%s.txt',ipitype)),Stats);
-        dsave(fullfile(figDir,sprintf('sh1_behav_bms_stats_%s.txt',ipitype)),stats4);
+        if saveresult
+            print(fig1,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig1_%s.eps',ipitype)));
+            print(fig2,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig2_%s.eps',ipitype)));
+            dsave(fullfile(figDir,sprintf('sh1_behav_stats_%s.txt',ipitype)),Stats);
+            dsave(fullfile(figDir,sprintf('sh1_behav_bms_stats_%s.txt',ipitype)),stats4);
+        end
         
         varargout = {Stats,stats4};
     case 'panel_training' % plot within- and between-chunk IPIs
@@ -113,9 +116,18 @@ switch (what)
         errorwidth  = 1.25;
         fig = 1;
         bgcolor = 'w';
-        markercolors = {'b','r',[0.8,0.8,0.8]};
-        vararginoptions(varargin, {'ipitype','markersize','linewidth','errorwidth','fig','bgcolor','markercolors'});
-                
+        vararginoptions(varargin, {'ipitype','markersize','linewidth','errorwidth','fig','bgcolor'});
+              
+        % adjust color
+        switch lower(bgcolor)
+            case {'w', [1 1 1]}
+                markercolors = {'b','r',[0.8,0.8,0.8]};
+            case {'k',[0 0 0]}
+                markercolors = {[0.5,0.5,1],[1,0.3,0.3],[0.8,0.8,0.8]};
+            otherwise
+                markercolors = {'b','r',[0.8,0.8,0.8]};
+        end
+        
         % ===================================== %
         % load data for training and calc summary
         % ===================================== %
@@ -292,6 +304,16 @@ switch (what)
         bgcolor = 'w'; % 'k'
         vararginoptions(varargin,{'ipitype','titlename','corrRange','fig','bgcolor'});
         
+        % adjust color
+        switch lower(bgcolor)
+            case {'w', [1 1 1]}
+                colors = {'b','r'};
+            case {'k',[0 0 0]}
+                colors = {[0.5,0.5,1],[1,0.3,0.3]};
+            otherwise
+                colors = {'b','r'};
+        end
+        
         % ===================================== %
         % load data for followup session and calc summary
         % ===================================== %
@@ -388,8 +410,8 @@ switch (what)
         press = press(:);
         
         axes(ax{1}); % ipi patterns
-        xcat = lineplot([seq,press],data,'split',x(:),'linecolor',{'r','b'},...
-            'markertype','non','errorcolor',{'r','b'},'errorcap',0.0001,...
+        xcat = lineplot([seq,press],data,'split',x(:),'linecolor',colors,...
+            'markertype','non','errorcolor',colors,'errorcap',0.0001,...
             'linewidth',1.5,'errorwidth',1.5,'leg',{'G1','G2'},...
             'leglocation','northeast');
         
@@ -410,7 +432,7 @@ switch (what)
         barplot(r.type,fisherinv(r.Pearson),...
             'facecolor', {[0.9 0.9 0.9],[0.1 0.1 0.1]},...
             'edgecolor', {axcolor}, 'linewidth', 1,...
-            'errorwidth', 1, 'errorcolor', axcolor,...
+            'errorwidth', 1, 'errorcolor', {axcolor},...
             'capwidth',0.0001);
         
         drawline(0,'dir','horz','linewidth',1,'color',axcolor);
@@ -457,8 +479,17 @@ switch (what)
         ipitype = 'ipi_maxtime';  % 'ipi_onset'
         fig=1;
         bgcolor = 'w'; 
-        facecolor = {'b','r'};
-        vararginoptions(varargin, {'ipitype','fig', 'bgcolor','facecolor'});
+        vararginoptions(varargin, {'ipitype','fig', 'bgcolor'});
+        
+        % adjust color
+        switch lower(bgcolor)
+            case {'w', [1 1 1]}
+                facecolor = {'b','r'};
+            case {'k',[0 0 0]}
+                facecolor = {[0.3,0.3,1], [1,0.3,0.3]};
+            otherwise
+                facecolor = {'b','r'};
+        end
         
         % ===================================== %
         % load data for followup session and calc summary
@@ -691,7 +722,6 @@ switch (what)
             ax{1} = axes('units','centimeters','position',fig{1});
             ax{2} = axes('units','centimeters','position',fig{2});
         elseif fig==1 % create window or axes
-            %myFigure([52/2.5 17/2.2]);
             figure('name','Linear regression on followup IPI data (cross-validated)',...
                 'color','w',...
                 'Units','centimeters','Position',[5, 5, 52/2.5, 17]);
