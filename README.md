@@ -13,7 +13,7 @@ Here is a short summary of two main codes reproducing behabioral and imaging fig
  
 |Function |Description |Example |
 |----|--------|----|
-|sh1_behabior.m |Reproduces figures for behaioral analyses. | `sh1_behabior('Figure_all')` |
+|sh1_behavior.m |Reproduces figures for behaioral analyses. | `sh1_behabior('Figure_all')` |
 |sh1_imaging.m |Reproduces figures for imaging analyses. | `sh1_imaging('Figure4c')` |
 
 - The repository also contains some MATLAB functions which utilizes Caret for visualization.
