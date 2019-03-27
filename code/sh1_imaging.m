@@ -4,28 +4,44 @@ function varargout = sh1_imaging(what, varargin);
 %   - run pattern component modeling (pcm) on each cortical surface patch
 %   - run representational clustering
 %   - display results on flat surface
+% 
 % Note:
 %   - for visualization (e.g., flattned map) smoothing is applied for
 %       purely visual aesthetic purpose.
 %   - no smoothing is applied for statistical analyses
-%
+%   - as a default setting, it only does visualization from pre-calculated results. 
+% 
+% To run analyses:
+%   - when the data 'pcmResult.mat' is missing in the /data
+%     folder, it runs pattern component modeling (PCM) using the pre-whitened
+%     activity patterns for each surface patch ('SurfPatch_pwhBeta_s%02d.mat')
+%   - when the data 'Cluster_10corr.mat' is missing in the /data folder, it
+%     runs representational clustering using the pre-calculated RDMs for
+%     each cortical patch ('SurfPatch_RDM.mat').
+%   - when the data for cluster-wise noise-ceiling is missing (either
+%     'noiseceiling_10cluster.mat' or 'noiseceiling_10cluster_relabel.mat')
+% 	  it also runs PCM to estimate it from ('ClusterCorr10_pwhBeta_s%02d.mat').
+% 
 % Usage
 %   - sh1_imaging(action, options)
 %   - action can be following string inputs;
 %       - 'Figure5'
 %       - 'Figure6'
 %       - etc.
-%
+%   - option can be 'bgcolor' and value, such as
+%     sh1_imaging('Figure4c','bgcolor','k');
+% 
+% 
 % ayokoi (2019) at.yokoi.work@gmail.com
 
 
 %% Path etc.
-baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/data'; 
+% baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/data'; 
 % path to data/result (for release, uncomment following lines)
-% thisfile = mfilename('fullpath');
-% baseDir = fileparts(thisfile);
-% p={fullfile(baseDir,'code'), fullfile(baseDir,'code','caret')};
-% addpath(p); % path to necessary functions
+thisfile = mfilename('fullpath');
+baseDir = fileparts(thisfile);
+p={fullfile(baseDir,'code'), fullfile(baseDir,'code','caret')};
+addpath(p); % path to necessary functions
 
 % File structure
 F.baseDir = baseDir;
@@ -60,6 +76,20 @@ cyan        = [0,104,183]/255;
 maxclust = 10;
 clabel10 = [6,5,2,7,9,1,3,8,4,10]; % labeling for cluster (10 solution)
 
+bgcolor = 'w'; % background color
+vararginoptions(varargin,{'bgcolor'});
+switch lower(bgcolor)
+    case {'w',[1,1,1]};
+        bgcolor=[1,1,1];
+        axcolor=[0,0,0];
+    case {'k',[0,0,0]};
+        bgcolor=[0,0,0];
+        axcolor=[1,1,1];
+    otherwise
+        bgcolor=[1,1,1];
+        axcolor=[0,0,0];
+end
+
 %% Main
 switch (what)
     case 'Figure4c'             % Plot mean distance map
@@ -74,7 +104,7 @@ switch (what)
         plotrange = {{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}}; % all surface
         map_fsaverage(nodedata, F.coord, F.topo, F.shape, F.border,...
             'threshold', [0.03,0.10], 'MAP', 'parula','plotrange', plotrange,...
-            'label','mean crossnobis dist.');
+            'label','mean crossnobis dist.','bgcolor',bgcolor);
         % save?
         varargout = {};
     case 'Figure5c'             % Plot noise-ceiling map
@@ -93,7 +123,7 @@ switch (what)
         nodedatapxp(nodedatapxp<=0.75)=NaN;
         map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
             'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,...
-            'label','PXP(noise-ceiling)','distfile',F.meandist);
+            'label','PXP(noise-ceiling)','distfile',F.meandist,'bgcolor',bgcolor);
         
         % map logBF (noise-ceiling)
         patchdata = R.noiseceiling;
@@ -101,7 +131,7 @@ switch (what)
         nodedatabf(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
         map_fsaverage(nodedatabf, F.coord, F.topo, F.shape, F.border,...
             'threshold', [1,10], 'MAP', 'jet','plotrange', plotrange,...
-            'label','logBF(noise-ceiling)','distfile',F.meandist);
+            'label','logBF(noise-ceiling)','distfile',F.meandist,'bgcolor',bgcolor);
         
         % print figure
         
@@ -123,7 +153,8 @@ switch (what)
             patchdata = R.pxp(:,i);
             nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
             map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
-                'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,'label',sprintf('PXP(%s)',models{i}));
+                'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,...
+                'label',sprintf('PXP(%s)',models{i}),'bgcolor',bgcolor);
             
             % map logBF (noise-ceiling)
             patchdata = R.logBFc(:,i);
@@ -132,7 +163,7 @@ switch (what)
             nodedatabfc(nodedatapxp<=0.75) = NaN;
             map_fsaverage(nodedatabfc, F.coord, F.topo, F.shape, F.border,...
                 'threshold', [1,3], 'MAP', 'parula','plotrange', plotrange,...
-                'label',sprintf('logBFc(%s)',models{i}),'distfile',F.meandist);
+                'label',sprintf('logBFc(%s)',models{i}),'distfile',F.meandist,'bgcolor',bgcolor);
         end
     case 'Figure6d'             % Plot merged map
         % load
@@ -161,7 +192,7 @@ switch (what)
         MAPs = {repmat(cyan,100,1), repmat(magenta,100,1),repmat(goldorange,100,1)};
         map_fsaverage_multi(nodedata, F.coord, F.topo, F.shape, F.border,...
             'threshold', [1,3], 'MAP', MAPs,'plotrange', plotrange,'label',sprintf('logBFc(merged)'),...
-            'distfile',F.meandist);
+            'distfile',F.meandist,'bgcolor',bgcolor);
     case 'Figure6fg'           % Plot scatter plot (overlap analyses)
         % load result
         R = sh1_imaging('run_pcm');
@@ -204,14 +235,23 @@ switch (what)
         struct2table(stats)
         
         % figure;
-        h=myFigure([25*3/2,15/sqrt(2)]);
+        figsize=[25*3/2,15/sqrt(2)];
+        handle = figure('unit','centimeters',...
+            'papersize',figsize    ,...
+            'position',[1,1,figsize(1),figsize(2)],...
+            'paperposition',[0,0,figsize(1),figsize(2)],...
+            'paperpositionmode','manual',...
+            'Color',bgcolor,'InvertHardcopy','off');
         
         subplot(1,3,1); % venn diagram
-        axis square; title({'Venn diagram', '(not handled for this implementation)'});
+        axis square; 
+        title({'Venn diagram', '(not handled for this implementation)'},'color',axcolor);
+        axis off;
         % You can draw it manually
         
         % Scatter plot
         subplot(1,3,2); % ff vs seq
+        set(gca,'xcolor',axcolor);
         colors = {cyan, magenta, pink, goldorange};
         catname = {'F', 'C', 'F+C', 'C+S', 'S'};
         catname = {'F', 'C', 'F+C', 'S', 'S+F', 'C+S', 'F+C+S'};
@@ -225,11 +265,13 @@ switch (what)
             'markertype','o',...
             'markersize', {10,10,10,10},...
             'markerfill',colors(C(C>0)),...
-            'markercolor',{'k','k','k','k'},...
+            'markercolor',{axcolor},...
             'leg',catname(C(C>0)),'leglocation','best'); box off; hold on;
         axis square; %title('title');
-        xlabel('logBFc (first-finger)'); ylabel('logBFc (sequence)');
+        xlabel('logBFc (first-finger)','color',axcolor); 
+        ylabel('logBFc (sequence)','color',axcolor);
         set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
+        set(gca,'xcolor',axcolor,'ycolor',axcolor,'color','none');
         
         subplot(1,3,3); % ch vs seq
         scatterplot(R.bfc(:,2),R.bfc(:,3),...
@@ -237,10 +279,12 @@ switch (what)
             'markertype','o',...
             'markersize', {10,10,10,10},...
             'markerfill',colors(C(C>0)),...
-            'markercolor',{'k','k','k','k'}); box off; hold on;
+            'markercolor',{axcolor}); box off; hold on;
         axis square; %title('title');
-        xlabel('logBFc (chunk)'); ylabel('logBFc (sequence)');
+        xlabel('logBFc (chunk)','color',axcolor); 
+        ylabel('logBFc (sequence)','color',axcolor);
         set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
+        set(gca,'xcolor',axcolor,'ycolor',axcolor,'color','none');
         
         varargout = {stats};
     case 'Figure7b'             % Plot clustering result map
@@ -307,7 +351,8 @@ switch (what)
         end
         colleg{7} = ''; % for preventing visual cluttering
         colleg{9} = '';
-        
+        figure('color',bgcolor,'inverthardcopy','off');
+        set(gca,'xcolor',axcolor,'color','none');
         [M, Rh,Ch,xcenter,xrange]=mosaicplot(row, col, ones(size(row)),...
             'facecolor', facecolor,...
             'rowlabel', [],...
@@ -319,9 +364,9 @@ switch (what)
             'subset', row>0&ilc,...
             'leg', rowleg,...
             'leglocation','southoutside');
-        title({'Cortical "storage" of sequence representations',''});
+        title({'Cortical "storage" of sequence representations',''},'color',axcolor);
         axis on;
-        xlabel('Clusters');
+        xlabel('Clusters','color',axcolor);
         set(gca,'ycolor','none','xtick',xcenter,'xticklabel',colleg,'xlim',xrange,...
             'tickdir','out','ylim',[-0.01,1.05]);
     case 'Figure7d'             % Plot relabeling result
@@ -340,20 +385,22 @@ switch (what)
             label{c} = sprintf('%d',c);
         end
         % plot
+        figure('color',bgcolor,'inverthardcopy','off');
         CAT.facecolor = cols;
-        CAT.edgecolor = 'k';
-        CAT.linecolor = 'k';
+        CAT.edgecolor = axcolor;
+        CAT.linecolor = axcolor;
         CAT.linewidth = 1;
+        CAT.errorcolor=axcolor;
         Y=S.noiseceiling./US.noiseceiling;
         
         [xpos,ypos,e]=barplot(S.cluster, Y, 'subset', isfinite(Y),...
-            'CAT', CAT,...
-            'gapwidth', [0.5,0.5],'split',S.cluster,'capwidth', 0.001);
-        drawline(1,'dir','horiz');
-        ylabel({'logBF-ratio'});  xlabel({'Clusters'});
-        title('Relabeling impact on noise-ceiling');
+            'CAT', CAT,'gapwidth', [0.5,0.5],'split',S.cluster,'capwidth', 0.001);
+        drawline(1,'dir','horiz','color',axcolor,'linewidth',1);
+        ylabel({'logBF-ratio'}, 'color',axcolor);
+        xlabel({'Clusters'}, 'color',axcolor);
+        title('Relabeling impact on noise-ceiling','color',axcolor);
         set(gca,'ytick',[0:0.5:2],'ylim',[0,2],...
-            'xtick',[xpos],'xticklabel',label);
+            'xtick',[xpos],'xticklabel',label,'xcolor',axcolor,'ycolor',axcolor,'color','none');
         set(gca,'tickdir','out','ticklength',[0.02,0.01]);
     
     case 'following parts could have been local functions instead'
@@ -561,7 +608,7 @@ end
 end
 
 % local functions
-function varargout = runPCM(Yprewh, conditionVec, partitionVec, MF, varargin)
+function varargout = runPCM(Yprewh, conditionVec, partitionVec, MF, varargin) % run PCM on prewhitened beta for each patch
 runEffect   = 'fixed'; % run effect
 verbose     = 1;
 fitAlgorithm= 'NR';
@@ -588,7 +635,7 @@ MF{end}.name = 'noise_ceiling';
 
 varargout = {T, Tcv, theta_cv};
 end
-function varargout = map_fsaverage(data, coords, topos, shapes, border, varargin)
+function varargout = map_fsaverage(data, coords, topos, shapes, border, varargin) % map result on fsaverage_sym template 
 % map data onto fsaverage flat surface
 threshold = [0,0.2];
 alpha=0.7;
@@ -673,7 +720,7 @@ title(label,'color',[1,1,1]-bgcolor,'fontsize',fontsize);
 
 varargout = {};
 end
-function varargout = map_fsaverage_multi(data, coords, topos, shapes, border, varargin)
+function varargout = map_fsaverage_multi(data, coords, topos, shapes, border, varargin) % map multiple results on fsaverage_sym template
 % map multiple data onto fsaverage flat surface to make merged image
 threshold = [0,0.2];
 alpha=0.7;
@@ -771,7 +818,7 @@ end
 
 varargout = {};
 end
-function varargout = setupFlatMap(plotrange,makeFig,printScale,bgcolor)
+function varargout = setupFlatMap(plotrange,makeFig,printScale,bgcolor) % setup for flat cortical surface
 % Make figure
 if nargin==0
     plotrange = {{[-79.8252,104.7103],[-64.1677,81.5173-10]},...
@@ -823,7 +870,7 @@ if ~exist('figscale','var');
 end;
 varargout = {axespositions,figmap,figscale};
 end
-function varargout = assign_patch2node(patchdata, hemis, patch, p2n, varargin)
+function varargout = assign_patch2node(patchdata, hemis, patch, p2n, varargin) % assign surface nodes to patches
 nodedata = NaN(163842,2);
 smooth = 0;
 F=[];
@@ -861,7 +908,7 @@ end
 varargout  = {nodedata};
 
 end
-function varargout = Gtest(counts)
+function varargout = Gtest(counts) % perform likelihood-ratio G-test
 %counts = varargin{1}; % [00 10 01 11] ;  Counts for no, A present, B present, both present
 N=sum(counts);
 pA = (counts(2)+counts(4)) / N;  % Overall probability of A present

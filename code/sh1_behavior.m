@@ -3,11 +3,15 @@ function varargout=sh1_behavior(what,varargin)
 % Do all behavioral data analyses and reproduce figures 
 % for Yokoi&Diedrichsen(2019) paper.
 % 
+% Usage: 
+%   sh1_behavior('Figure_all');
+%   % creates all figures and do analyses
+% 
+%   sh1_behavior('Figure_all','saveresult',1);
+%   % creates all figures, do analyses, and save results
 % 
 % 
-% 
-% 
-% 
+% ayokoi (2019) at.yokoi.work@gmail.com
 
 %% Settings
 % path to data/result (for testing)
@@ -999,7 +1003,7 @@ end
 sig = (res_cv'*res_cv)/(n-nk);
 loglike = -0.5*n*log(2*pi) - 0.5*n*log(sig) - 0.5*(1/sig) * (res_cv'*res_cv);
 end
-function ax=myColorbar(varargin)
+function ax=myColorbar(varargin) % make colorbar
 %% Draw color bar in current axes
 
 bgcolor = 'w';
