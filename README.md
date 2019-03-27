@@ -16,4 +16,4 @@ Here is a short summary of two main codes for reproducing behabioral and imaging
 |sh1_behavior.m |Reproduces figures for behavioral analyses. | `sh1_behavior('Figure_all')` |
 |sh1_imaging.m |Reproduces figures for imaging analyses. | `sh1_imaging('Figure4c')` |
 
-- The repository also contains some MATLAB functions which utilizes the Caret for visualization.
+- The repository also contains some MATLAB functions which utilizes the Caret functionalities (`/code/caret`) in the background for visualization of imaging anlayses on flattened cortical surface (fsaverage_sym template).
