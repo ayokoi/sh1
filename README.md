@@ -4,6 +4,7 @@ This repository contains MATLAB codes and related data to reproduce the Figures 
 
 ## Dependency
 - MATLAB R2015b (consistency is not guaranteed for other versions)
+- SPM12 (for `spm_BMS.m`, https://www.fil.ion.ucl.ac.uk/spm)
 - Dataframe toolbox (https://github.com/jdiedrichsen/dataframe)
 - PCM toolbox (https://githum.com/jdiedrichsen/pcm_toolbox)
 - Caret (http://brainvis.wustl.edu/wiki/index.php/Caret:About)
