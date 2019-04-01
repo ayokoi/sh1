@@ -21,7 +21,7 @@ function varargout=sh1_behavior(what,varargin)
 
 % path to data/result (for release)
 thisfile = mfilename('fullpath');
-baseDir = fileparts(thisfile);
+baseDir = fullfile(fileparts(thisfile),'../');
 analyzeDir 	= fullfile(baseDir, 'data');
 figDir      = fullfile(baseDir, 'figure');
 
