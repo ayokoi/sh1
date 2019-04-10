@@ -22,7 +22,15 @@ function varargout = sh1_imaging(what, varargin);
 %     'noiseceiling_10cluster.mat' or 'noiseceiling_10cluster_relabel.mat')
 % 	  it also runs PCM to estimate it from ('ClusterCorr10_pwhBeta_s%02d.mat').
 %
-% Usage
+% Dependency:
+%   Install the followings and set path correctly before running this function;
+%   - MATLAB R2015b (consistency is not guaranteed for other versions)
+%   - SPM12 (for `spm_BMS.m`, https://www.fil.ion.ucl.ac.uk/spm)
+%   - Dataframe toolbox (https://github.com/jdiedrichsen/dataframe)
+%   - PCM toolbox (https://githum.com/jdiedrichsen/pcm_toolbox)
+%   - Caret (http://brainvis.wustl.edu/wiki/index.php/Caret:About)
+% 
+% Usage:
 %   - sh1_imaging(action, options)
 %   - action can be following string inputs;
 %       - 'Figure5'

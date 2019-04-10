@@ -3,6 +3,12 @@ function varargout=sh1_behavior(what,varargin)
 % Do all behavioral data analyses and reproduce figures 
 % for Yokoi&Diedrichsen(2019) paper.
 % 
+% Dependency:
+%   Install the followings and set path correctly before running this function;
+%   - MATLAB R2015b (consistency is not guaranteed for other versions)
+%   - SPM12 (for `spm_BMS.m`, https://www.fil.ion.ucl.ac.uk/spm)
+%   - Dataframe toolbox (https://github.com/jdiedrichsen/dataframe)
+% 
 % Usage: 
 %   sh1_behavior('Figure_all');
 %   % creates all figures and do analyses
