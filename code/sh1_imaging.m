@@ -4,13 +4,13 @@ function varargout = sh1_imaging(what, varargin);
 %   - run pattern component modeling (pcm) on each cortical surface patch
 %   - run representational clustering
 %   - display results on flat surface
-% 
+%
 % Note:
 %   - for visualization (e.g., flattned map) smoothing is applied for
 %       purely visual aesthetic purpose.
 %   - no smoothing is applied for statistical analyses
-%   - as a default setting, it only does visualization from pre-calculated results. 
-% 
+%   - as a default setting, it only does visualization from pre-calculated results.
+%
 % To run analyses:
 %   - when the data 'pcmResult.mat' is missing in the /data
 %     folder, it runs pattern component modeling (PCM) using the pre-whitened
@@ -21,7 +21,7 @@ function varargout = sh1_imaging(what, varargin);
 %   - when the data for cluster-wise noise-ceiling is missing (either
 %     'noiseceiling_10cluster.mat' or 'noiseceiling_10cluster_relabel.mat')
 % 	  it also runs PCM to estimate it from ('ClusterCorr10_pwhBeta_s%02d.mat').
-% 
+%
 % Usage
 %   - sh1_imaging(action, options)
 %   - action can be following string inputs;
@@ -30,18 +30,19 @@ function varargout = sh1_imaging(what, varargin);
 %       - etc.
 %   - option can be 'bgcolor' and value, such as
 %     sh1_imaging('Figure4c','bgcolor','k');
-%  
+%
 %       'bgcolor' : String value. Specify background color (default is 'w').
 %       'savefig' : A 0-1 Flag. If save figure, set this to 1 (default is 0).
 %       'sulclabel' = A vector of flags. On/off labels for sulci, each hemisphere (default is [1 0]).
-% 
+%
 % ayokoi (2019) at.yokoi.work@gmail.com
 
 
 %% Path etc.
-% baseDir = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/'; 
+% baseDir = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh1/gittoshare/';
 % dataDir = fullfile(baseDir,'data');
 % figDir = fullfile(baseDir,'figure');
+
 % path to data/result (for release, uncomment following lines)
 thisfile = mfilename('fullpath');
 baseDir = fullfile(fileparts(thisfile),'../');
@@ -59,7 +60,10 @@ F.RDM = fullfile(dataDir, 'SurfPatch_RDM.mat'); % pre-calculated RDM for all pat
 F.modeldesign = fullfile(dataDir,'pcmDesign.mat'); % representational models and experimental design info (necessary for pcm)
 F.pcmResult = fullfile(dataDir,'pcmResult.mat'); % result file for pcm
 F.coord = {fullfile(dataDir,'lh.FLAT.coord'), fullfile(dataDir,'rh.FLAT.coord')}; % flattened surface (fsaverage_sym)
+F.coord_3d = {fullfile(dataDir,'lh.PIAL.coord'), fullfile(dataDir,'rh.PIAL.coord')}; % flattened surface (fsaverage_sym)
+%F.coord_3d = {fullfile(dataDir,'lh.INFLATED.coord'), fullfile(dataDir,'rh.INFLATED.coord')}; % flattened surface (fsaverage_sym)
 F.topo = {fullfile(dataDir,'lh.CUT.topo'), fullfile(dataDir,'rh.CUT.topo')}; % flattened surface (fsaverage_sym)
+F.topo_3d = {fullfile(dataDir,'lh.CLOSED.topo'), fullfile(dataDir,'rh.CLOSED.topo')}; % flattened surface (fsaverage_sym)
 F.shape = {fullfile(dataDir,'lh.surface_shape'),fullfile(dataDir,'rh.surface_shape')}; % flattened surface (fsaverage_sym)
 F.border = {fullfile(dataDir,'lh.All.borderproj'),fullfile(dataDir,'rh.All.borderproj')}; % flattened surface (fsaverage_sym)
 F.p2n = fullfile(dataDir,'patch2node.mat'); % node assignment for each patch
@@ -71,8 +75,6 @@ F.ceilingCluster = fullfile(dataDir,'noiseceiling_10cluster.mat');
 F.ceilingCluster_relabel = fullfile(dataDir,'noiseceiling_10cluster_relabel.mat');
 F.design_relabel = fullfile(dataDir,'pcmDesign_visualcue.mat');
 
-% set path for functions
-
 % other parameters for figure
 plotrange = {{[-79.8252,104.7103],[-64.1677,81.5173-10]},...
     {[-104.7103,79.8252],[-64.1677,81.5173-10]}};
@@ -83,10 +85,12 @@ cyan        = [0,104,183]/255;
 maxclust = 10;
 clabel10 = [6,5,2,7,9,1,3,8,4,10]; % labeling for cluster (10 solution)
 
+%% options (default)
 bgcolor = 'w'; % background color
 savefig = 0; % if save figure, set this to 1
 sulclabel = [1,0]; % labels for sulci, each hemisphere
-vararginoptions(varargin,{'bgcolor','savefig','sulclabel'});
+postfix = '';
+vararginoptions(varargin,{'bgcolor','savefig','sulclabel','postfix'});
 switch lower(bgcolor)
     case {'w',[1,1,1]};
         bgcolor=[1,1,1];
@@ -101,20 +105,41 @@ end
 
 %% Main
 switch (what)
+    case 'Figure_all'             % Plot all figures
+        cases = {'Figure4c',...
+            'Figure5c',...
+            'Figure6abc','Figure6d','Figure6fg',...
+            'Figure7b','Figure7c','Figure7d'};
+        for i=3:numel(cases)
+            sh1_imaging(cases{i},varargin{:});
+            close all;
+        end;
     case 'Figure4c'             % Plot mean distance map
         % load result
         for h=1:2
             M = caret_load(F.meandist{h}); % mean crossnobis distance on continuous searchlight
             crossnobis = M.data(:,1);
             crossnobis(isnan(crossnobis)) = 0; % pad
-            nodedata(:,h) = crossnobis;            
+            nodedata(:,h) = crossnobis;
         end
         % map mean distance
         plotrange = {{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}}; % all surface
         map_fsaverage(nodedata, F.coord, F.topo, F.shape, F.border,...
             'threshold', [0.03,0.10], 'MAP', 'parula','plotrange', plotrange,...
             'label','Mean crossnobis distance','bgcolor',bgcolor,'savefig',savefig,...
-            'figDir',figDir,'sulclabel',sulclabel);
+            'figDir',figDir,'sulclabel',sulclabel,'postfix',postfix);
+        
+        % create 3D surface
+        map_fsaverage_3D(nodedata, F.coord_3d, F.topo_3d, F.shape, [],...
+            'threshold', [0.03,0.10], 'MAP', 'parula','plotrange', [],...
+            'label','Mean crossnobis distance','bgcolor',bgcolor,'savefig',savefig,...
+            'figDir',figDir,'sulclabel',sulclabel,'postfix',postfix);
+        
+        % create plain 3D surface (optional)
+        %map_fsaverage_3D(zeros(size(nodedata)), F.coord_3d, F.topo_3d, F.shape, [],...
+        %    'threshold', [0.03,0.10], 'MAP', 'parula','plotrange', [],...
+        %    'label','Mean crossnobis distance','bgcolor',bgcolor,'savefig',savefig,...
+        %    'figDir',figDir,'sulclabel',sulclabel,'postfix','plain3D');
         
         varargout = {};
     case 'Figure5c'             % Plot noise-ceiling map
@@ -142,7 +167,7 @@ switch (what)
         map_fsaverage(nodedatabf, F.coord, F.topo, F.shape, F.border,...
             'threshold', [1,10], 'MAP', 'jet','plotrange', plotrange,...
             'label','logBF(noise-ceiling)','distfile',F.meandist,'bgcolor',bgcolor,...
-            'savefig',savefig,'figDir',figDir,'sulclabel',sulclabel);
+            'savefig',savefig,'figDir',figDir,'sulclabel',sulclabel,'postfix',postfix);
         
         varargout = {};
     case 'Figure6abc'           % Plot logBFc map
@@ -173,7 +198,7 @@ switch (what)
             map_fsaverage(nodedatabfc, F.coord, F.topo, F.shape, F.border,...
                 'threshold', [1,3], 'MAP', 'parula','plotrange', plotrange,...
                 'label',sprintf('logBFc(%s)',models{i}),'distfile',F.meandist,'bgcolor',bgcolor,...
-                'savefig',savefig,'figDir',figDir,'sulclabel',sulclabel);
+                'savefig',savefig,'figDir',figDir,'sulclabel',sulclabel,'postfix',postfix);
         end
     case 'Figure6d'             % Plot merged map
         % load
@@ -203,7 +228,7 @@ switch (what)
         map_fsaverage_multi(nodedata, F.coord, F.topo, F.shape, F.border,...
             'threshold', [1,3], 'MAP', MAPs,'plotrange', plotrange,'label',{'F','C','S'},...
             'distfile',F.meandist,'bgcolor',bgcolor,'savefig',savefig,'figDir',figDir,...
-            'sulclabel',sulclabel);
+            'sulclabel',sulclabel,'postfix',postfix);
         
         varargout = {};
     case 'Figure6fg'           % Plot scatter plot (overlap analyses)
@@ -254,16 +279,16 @@ switch (what)
             'Color',bgcolor,'InvertHardcopy','off');
         
         % Draw Venn diagram
-        subplot(1,3,1); 
-        set(gca,'xcolor',axcolor);                
+        subplot(1,3,1);
+        set(gca,'xcolor',axcolor);
         leg = {'FF','CH','SQ'};
         qvenn2(present(:,[2,1]), 'leg', leg([2,1]),...
             'linecolor', {magenta,cyan},'orientation', 270,...
-            'printnum', [0,1]); 
+            'printnum', [0,1]);
         qvenn2(present(:,[2,3]), 'leg', {'',leg{3}},...
             'linecolor', {magenta, goldorange},'orientation', 90,...
-            'printnum', [1,1]); 
-        axis square; 
+            'printnum', [1,1]);
+        axis square;
         title({'Venn diagram'},'color',axcolor);
         axis off;
         
@@ -287,7 +312,7 @@ switch (what)
             'markercolor',{axcolor},...
             'leg',catname(C(C>0)),'leglocation','best'); box off; hold on;
         axis square; %title('title');
-        xlabel({'logBFc (first-finger)',''},'color',axcolor); 
+        xlabel({'logBFc (first-finger)',''},'color',axcolor);
         ylabel('logBFc (sequence)','color',axcolor);
         set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
         set(gca,'xcolor',axcolor,'ycolor',axcolor,'color','none');
@@ -300,13 +325,15 @@ switch (what)
             'markerfill',colors(C(C>0)),...
             'markercolor',{axcolor}); box off; hold on;
         axis square; %title('title');
-        xlabel({'logBFc (chunk)',''},'color',axcolor); 
+        xlabel({'logBFc (chunk)',''},'color',axcolor);
         ylabel('logBFc (sequence)','color',axcolor);
         set(gca, 'tickdir', 'out', 'ticklength', [0.03, 0.01]);
         set(gca,'xcolor',axcolor,'ycolor',axcolor,'color','none');
         
         % save figure and stats
-        fname = fullfile(figDir, sprintf('Scatterplot_logBFc'));
+        fname = fullfile(figDir, sprintf('Scatterplot_logBFc.%s.png',postfix));
+        mySaveFig(handle, fname, savefig, '-dpng','-r400');
+        fname = fullfile(figDir, sprintf('Scatterplot_logBFc.%s.eps',postfix));
         mySaveFig(handle, fname, savefig, '-dpsc2','-r400');
         fnames=fullfile(figDir, 'Stats_overlap.txt');
         dsave(fnames,stats);
@@ -327,9 +354,12 @@ switch (what)
             label{i} = num2str(clabel10(i));
         end
         nodedata = permute(nodedata, [1,3,2]);
-        map_fsaverage_multi(nodedata, F.coord, F.topo, F.shape, F.border,...
-            'threshold', [0.7,1], 'MAP', MAPs,'plotrange', plotrange,'label',label,...
-            'distfile',F.meandist,'alpha',0.9,'savefig',savefig,'figDir',figDir,'sulclabel',sulclabel);
+        [~,idx]=sort(clabel10); % re-order
+        
+        map_fsaverage_multi(nodedata(:,idx,:), F.coord, F.topo, F.shape, F.border,...
+            'threshold', [0.7,1], 'MAP', MAPs(idx),'plotrange', plotrange,'label',label(idx),...
+            'distfile',F.meandist,'alpha',0.9,'savefig',savefig,'figDir',figDir,...
+            'sulclabel',sulclabel,'postfix',postfix);
         
         varargout = {};
     case 'Figure7c'             % Plot Marimekko chart (mosaic plot)
@@ -403,8 +433,9 @@ switch (what)
             'tickdir','out','ylim',[-0.01,1.05]);
         
         % save
-        fname=fullfile(figDir,'MosaicPlot');
+        fname=fullfile(figDir,sprintf('MosaicPlot.%s.eps',postfix));
         mySaveFig(fig,fname,savefig,'-dpsc2','-r400');
+        fname=fullfile(figDir,sprintf('MosaicPlot.%s.png',postfix));
         mySaveFig(fig,fname,savefig,'-dpng','-r400');
         
         varargout = {};
@@ -444,10 +475,11 @@ switch (what)
         set(gca,'ytick',[0:0.5:2],'ylim',[0,2],...
             'xtick',[xpos],'xticklabel',label,'xcolor',axcolor,'ycolor',axcolor,'color','none');
         set(gca,'tickdir','out','ticklength',[0.02,0.01]);
-    
+        
         % save
-        fname=fullfile(figDir,'RelabelingPlot');
+        fname=fullfile(figDir,sprintf('RelabelingPlot.%s.eps',postfix));
         mySaveFig(fig,fname,savefig,'-dpsc2','-r400');
+        fname=fullfile(figDir,sprintf('RelabelingPlot.%s.png',postfix));
         mySaveFig(fig,fname,savefig,'-dpng','-r400');
         
         varargout = {};
@@ -650,13 +682,13 @@ switch (what)
             % save relabelling result
             save(F.ceilingCluster_relabel, '-struct','S','-v7.3');
         end
-        varargout = {S};        
+        varargout = {S};
     otherwise
         warning('No such case.');
 end
-end
+end % end of main part
 
-% local functions
+%% local functions
 function varargout = runPCM(Yprewh, conditionVec, partitionVec, MF, varargin) % run PCM on prewhitened beta for each patch
 runEffect   = 'fixed'; % run effect
 verbose     = 1;
@@ -684,7 +716,7 @@ MF{end}.name = 'noise_ceiling';
 
 varargout = {T, Tcv, theta_cv};
 end
-function varargout = map_fsaverage(data, coords, topos, shapes, border, varargin) % map result on fsaverage_sym template 
+function varargout = map_fsaverage(data, coords, topos, shapes, border, varargin) % map result on fsaverage_sym template
 % map data onto fsaverage flat surface
 threshold = [0,0.2];
 alpha=0.7;
@@ -693,12 +725,13 @@ fontsize = 15;
 bgcolor = [0 0 0]; % must be vector
 MAP = 'parula';
 label = '';
+postfix = '';
 distfile = [];
 plotrange = {{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}};
 savefig = 0;
 figDir = [];
 sulclabel = [1,0];
-vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','savefig','plotrange','distfile','figDir','sulclabel'});
+vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','savefig','plotrange','distfile','figDir','sulclabel','postfix'});
 
 borderalighment={'left','right'};
 
@@ -719,7 +752,7 @@ for h=1:2
     ylims = [min(F.data(:,2)), max(F.data(:,2))]; % plot range (y)
     
     %subplot(1,2,h);
-    ax(h) = axes('position',axespositions{h});    
+    ax(h) = axes('position',axespositions{h});
     if ~isempty(distfile)
         M=caret_load(distfile{h});
         caret_plotflatmap_rgb('coord',coord,'topo',topo,...
@@ -750,9 +783,9 @@ for h=1:2
         plot(borderX,borderY,'w.', 'markersize', bordersize);
         if sulclabel(h)==1
             text(borderX(end),borderY(end), B.Border(b).name,...
-            'horizontalalignment',borderalighment{h},...
-            'verticalalignment','bottom',...
-            'fontsize',fontsize,'color','w'); % border name
+                'horizontalalignment',borderalighment{h},...
+                'verticalalignment','bottom',...
+                'fontsize',fontsize,'color','w'); % border name
         end
     end
 end
@@ -767,8 +800,8 @@ title(label,'color',[1,1,1]-bgcolor,'fontsize',fontsize);
 
 % save figures
 template = 'fsaverage_sym';
-fname_map = sprintf('Map.%s.%s.png',template,label);
-fname_scale = sprintf('Colorbar.%s.%s.png',template,label);
+fname_map = sprintf('Map.%s.%s.%s.png',template,label,postfix);
+fname_scale = sprintf('Colorbar.%s.%s.%s.png',template,label,postfix);
 mySaveFig(hmap, fullfile(figDir, fname_map), savefig, '-dpng','-r400');
 mySaveFig(hscale, fullfile(figDir, fname_scale), savefig, '-dpng','-r400');
 
@@ -783,12 +816,13 @@ fontsize = 15;
 bgcolor = [0 0 0]; % must be vector
 MAP = parula(100);
 label = '';
+postfix = '';
 plotrange = {{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}};
 savefig = 0;
 distfile = [];
 figDir = [];
 sulclabel = [1 0];
-vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','savefig','plotrange','distfile','alpha','figDir','sulclabel'});
+vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','savefig','plotrange','distfile','alpha','figDir','sulclabel','postfix'});
 
 borderalighment={'left','right'};
 
@@ -853,9 +887,9 @@ for h=1:2
         plot(borderX,borderY,'w.', 'markersize', bordersize);
         if sulclabel(h)==1
             text(borderX(end),borderY(end), B.Border(b).name,...
-            'horizontalalignment',borderalighment{h},...
-            'verticalalignment','bottom',...
-            'fontsize',fontsize,'color','w'); % border name
+                'horizontalalignment',borderalighment{h},...
+                'verticalalignment','bottom',...
+                'fontsize',fontsize,'color','w'); % border name
         end
     end
 end
@@ -869,11 +903,11 @@ labelstr='';
 for col=1:size(data,2)
     labelstr=sprintf('%s%s',labelstr,label{col});
 end
-figure(hscale); 
-for col=1:size(data,2)    
+figure(hscale);
+for col=1:size(data,2)
     subplot(1,size(data,2),col);
     myColorbar('MAP',MAPs{col},'barname',label{col},...
-        'bgcolor',bgcolor,'Nlevel',size(MAPs{col},1)); axis off    
+        'bgcolor',bgcolor,'Nlevel',size(MAPs{col},1)); axis off
 end
 % ax(end+1)=axes('position', axespositions{end});
 % colorscale = linspace(threshold(1),threshold(2),100);
@@ -884,10 +918,119 @@ end
 
 % save figures
 template = 'fsaverage_sym';
-fname_map = sprintf('Map.%s.%s.png',template,labelstr);
-fname_scale = sprintf('Colorbar.%s.%s.png',template,labelstr);
+fname_map = sprintf('Map.%s.%s.%s.png',template,labelstr,postfix);
+fname_scale = sprintf('Colorbar.%s.%s.%s.png',template,labelstr,postfix);
 mySaveFig(hmap, fullfile(figDir, fname_map), savefig, '-dpng','-r400');
 mySaveFig(hscale, fullfile(figDir, fname_scale), savefig, '-dpng','-r400');
+
+varargout = {};
+end
+function varargout = map_fsaverage_3D(data, coords, topos, shapes, border, varargin) % map result on fsaverage_sym template
+% map data onto fsaverage flat surface
+% (coords file can be pial, white, or inflated)
+threshold = [0,0.2];
+alpha=0.7;
+bordersize=10;
+fontsize = 15;
+bgcolor = [0 0 0]; % must be vector
+MAP = 'parula';
+label = '';
+postfix='';
+distfile = [];
+plotrange = []; %{{[-126, 140],[-124,82]}, {[-140, 126],[-124,82]}};
+savefig = 0;
+figDir = [];
+sulclabel = [1,0];
+views = {{[-90 0],[90 0]},{[-90 0],[90 0]}}; % two view per hemisphere
+vararginoptions(varargin(1:end), {'threshold', 'bgcolor','template','MAP','label','savefig','plotrange','distfile','figDir','sulclabel','views','postfix'});
+
+borderalighment={'left','right'};
+
+% loop over hemisphere
+[axespositions, hmap, hscale] = setup3DMap(plotrange,1,0,bgcolor); % make panels
+
+for h=1:2
+    figure(hmap{h});
+    
+    % show result on flatmap
+    coord = coords{h};
+    topo = topos{h};
+    shape = shapes{h};
+    
+    S=caret_load(shape);
+    depth = S.data(:,2); % cortical depth information
+    
+    F=caret_load(coord);
+    xlims = [min(F.data(:,1)), max(F.data(:,1))]; % plot range (x)
+    ylims = [min(F.data(:,2)), max(F.data(:,2))]; % plot range (y)
+    zlims = [min(F.data(:,3)), max(F.data(:,3))]; % plot range (z)
+    
+    %subplot(1,2,h);
+    for v=1:numel(views{h})
+        ax(h,v) = axes('position',axespositions{h}{v});
+        if ~isempty(distfile)
+            M=caret_load(distfile{h});
+            caret_plot3D_rgb('coord',coord,'topo',topo,...
+                'underlay', depth, 'data', M.data(:,1), 'dscale', [0.03,10],'threshold',0.03,...
+                'xlims', xlims, 'ylims', ylims,'zlims',zlims,'dmap',hot(100),'alpha',alpha);
+            idx = ~isnan(data(:,h))&data(:,h)>threshold(1);
+            [~,p]=caret_plot3D_rgb('coord',coord,'topo',topo,...
+                'underlay', depth, 'data', data(:,h), 'dscale', threshold,'threshold',threshold(1),...
+                'xlims', xlims, 'ylims', ylims,'zlims',zlims,'dmap',eval(MAP),'alpha',alpha,'idx',idx);
+            %set(p,'facealpha',alpha);
+        else
+            idx = ~isnan(data(:,h));
+            caret_plot3D_rgb('coord',coord,'topo',topo,...
+                'underlay', depth, 'data', data(:,h), 'dscale', threshold,'threshold',threshold(1),...
+                'xlims', xlims, 'ylims', ylims,'zlims',zlims,'dmap',eval(MAP),'alpha',alpha,'idx',idx);
+        end
+        
+        axis equal; axis tight; axis off; hold on;
+        if ~isempty(plotrange)
+            set(gca, 'xlim',plotrange{h}{1},'ylim',plotrange{h}{2},'zlim',plotrange{h}{3});
+        end
+        set(ax(h,v),'view',views{h}{v});
+        
+        % draw sulci onto flatmap
+        if ~isempty(border)
+            B = caret_load(border{h});
+            for b=1:length(B.Border)
+                %borderidx = cat(1,B.Border.vertex);
+                borderidx = cat(1,B.Border(b).vertex);
+                borderX = F.data(borderidx(:,1),1);
+                borderY = F.data(borderidx(:,1),2);
+                borderZ = F.data(borderidx(:,1),3);
+                plot3(borderX,borderY,borderZ,'w.', 'markersize', bordersize);
+                if sulclabel(h)==1
+                    text(borderX(end),borderY(end),borderZ(end), B.Border(b).name,...
+                        'horizontalalignment',borderalighment{h},...
+                        'verticalalignment','bottom',...
+                        'fontsize',fontsize,'color','w'); % border name
+                end
+            end
+        end
+    end
+    % save figures for each hemisphere
+    template = 'fsaverage_sym_3D';
+    hem={'LH','RH'};
+    fname_map = sprintf('%s.Map.%s.%s.%s.png',hem{h},template,label,postfix);
+    mySaveFig(hmap{h}, fullfile(figDir, fname_map), savefig, '-dpng','-r400');
+end
+
+
+% draw colorbar
+if ~isempty(hscale)
+    figure(hscale); colormap(MAP);
+    ax_scale=axes('position', axespositions{end});
+    colorscale = linspace(threshold(1),threshold(2),100);
+    imagesc(colorscale); caxis(threshold);
+    set(gca,'xcolor',[1,1,1]-bgcolor,'ycolor',[1,1,1]-bgcolor,'fontsize',fontsize,'tickdir','out');
+    set(gca,'ytick',[],'xtick',[1,100],'xticklabel',{num2str(threshold(1)), num2str(threshold(2))});
+    title(label,'color',[1,1,1]-bgcolor,'fontsize',fontsize);
+    % save
+    fname_scale = sprintf('Colorbar.%s.%s.%s.png',template,label,postfix);
+    mySaveFig(hscale, fullfile(figDir, fname_scale), savefig, '-dpng','-r400');
+end
 
 varargout = {};
 end
@@ -935,6 +1078,67 @@ centermargin = 0.005;
 axespositions = {[0.0 topmargin 0.5-centermargin 1.0-topmargin],...
     [0.5+centermargin topmargin 0.5-centermargin 1.0-topmargin], ...
     [0.5-colorbarsize(1)/2 0.5-colorbarsize(2)/2 colorbarsize(1), colorbarsize(2)]};
+% third one is for color scale
+
+if ~exist('figmap','var');
+    figmap = [];
+end;
+if ~exist('figscale','var');
+    figscale = [];
+end;
+varargout = {axespositions,figmap,figscale};
+end
+function varargout = setup3DMap(plotrange,makeFig,printScale,bgcolor) % setup for 3D cortical surface
+% Make figure
+if nargin==0
+    plotrange = {{[-79.8252,104.7103],[-64.1677,81.5173-10]},...
+        {[-104.7103,79.8252],[-64.1677,81.5173-10]}};
+    makeFig=1;
+    printScale=0;
+    bgcolor='k';
+end
+
+%aspectratio = diff(plotrange{1}{2}) / diff(plotrange{1}{1}) /2;
+%width = 40;
+%heightMap= width*aspectratio*1.05; % 20
+width = 20;
+heightMap = 7;
+heightScale=20-heightMap;
+
+if makeFig==1
+    for h=1:2
+        figmap{h} = figure('units','centimeters',...
+            'paperunits','centimeters',...
+            'papersize',[width heightMap]/2,...
+            'position',[5 5 width heightMap],...
+            'paperposition',[0 0 width heightMap]/2,...
+            'paperpositionmode','auto',...
+            'renderer','opengl'); % [width heightMap]
+        figmap{h}.Color = bgcolor;
+        figmap{h}.InvertHardcopy = 'off';
+    end
+    if printScale==1
+        figscale = figure('units','centimeters',...
+            'paperunits','centimeters',...
+            'papersize',[width heightScale]/2,...
+            'position',[5 5 width heightScale],...
+            'paperposition',[0 0 width heightScale]/2,...
+            'paperpositionmode','manual',...
+            'renderer','opengl'); % [width heightMap]
+        figscale.Color = bgcolor;
+        figscale.InvertHardcopy = 'off';
+    end
+end
+
+topmargin = 0.01; %0.2
+colorbarsize = [0.2 0.2]; % width height
+centermargin = 0.005;
+% axespositions = {[0.0 topmargin 0.5-centermargin 1.0-topmargin],...
+%     [0.5+centermargin topmargin 0.5-centermargin 1.0-topmargin], ...
+%     [0.5-colorbarsize(1)/2 0.5-colorbarsize(2)/2 colorbarsize(1), colorbarsize(2)]};
+axespositions = {{[0.0+0.5*(1-1) 0.0 0.5 1.0],[0.0+0.5*(2-1) 0.0 0.5 1.0]},...
+    {[0.0+0.5*(1-1) 0.0 0.5 1.0],[0.0+0.5*(2-1) 0.0 0.5 1.0]},...
+    [0.5-colorbarsize(1)/2 0.5-colorbarsize(2)/2 colorbarsize(1), colorbarsize(2)]}; % in terms of different views, not hemispheres
 % third one is for color scale
 
 if ~exist('figmap','var');
@@ -1002,3 +1206,4 @@ fprintf('Crit:%2.2f\n',criticalValue);
 fprintf('p-val:%f\n',pval);
 varargout = {G, pval, ExpCounts, counts};
 end
+
