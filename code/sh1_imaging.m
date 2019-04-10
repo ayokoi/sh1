@@ -45,11 +45,11 @@ function varargout = sh1_imaging(what, varargin);
 
 % path to data/result (for release, uncomment following lines)
 thisfile = mfilename('fullpath');
-baseDir = fullfile(fileparts(thisfile),'../');
-dataDir = fullfile(baseDir,'data');
-figDir = fullfile(baseDir,'figure');
-p={fullfile(baseDir,'code'), fullfile(baseDir,'code','caret')};
-addpath(p); % path to necessary functions
+baseDir = fullfile(fileparts(thisfile));
+dataDir = fullfile(baseDir,'../data');
+figDir = fullfile(baseDir,'../figure');
+p={fullfile(baseDir,'../code'), fullfile(baseDir,'../code/helper')};
+addpath(p{:}); % path to necessary functions
 
 % File structure
 F.dataDir = dataDir;
@@ -1170,7 +1170,7 @@ for h=1:2
         M.num_cols = 1;
         M.column_name = {'tmp'};
         metricName = fullfile(F.dataDir, 'tmp.metric');
-        caret_savemetric(metricName, M);
+        caret_save(metricName, M);
         S = caret_smooth(metricName,...
             'coord', F.coord{h},...
             'topo', F.topo{h},...
