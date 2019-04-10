@@ -106,8 +106,10 @@ switch (what)
         
         % save figure and stats
         if saveresult
-            print(fig1,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig1_%s.eps',ipitype)));
-            print(fig2,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig2_%s.eps',ipitype)));
+            print(fig1,'-dpng','-r400',fullfile(figDir,sprintf('sh1_Fig1_%s.%s.png',ipitype,bgcolor)));
+            print(fig2,'-dpng','-r400',fullfile(figDir,sprintf('sh1_Fig2_%s.%s.png',ipitype,bgcolor)));            
+            print(fig1,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig1_%s.%s.eps',ipitype,bgcolor)));
+            print(fig2,'-dpsc2','-r400',fullfile(figDir,sprintf('sh1_Fig2_%s.%s.eps',ipitype,bgcolor)));
             dsave(fullfile(figDir,sprintf('sh1_behav_stats_%s.txt',ipitype)),Stats);
             dsave(fullfile(figDir,sprintf('sh1_behav_bms_stats_%s.txt',ipitype)),stats4);
         end
@@ -287,7 +289,7 @@ switch (what)
         D = tapply(T,{'SN'},{'ipi_within','nanmean','subset',T.Day==5,'name','within'},...
             {'ipi_between','nanmean','subset',T.Day==5,'name','between'});
         fprintf('---- ttest within vs between on day 5 ----\n');
-        [t,p]=ttest_mc(D.within,D.between,2,'paired');
+        [t,p]=ttest(D.within,D.between,2,'paired');
         
         Stats.comparison{1} = 'within- vs. between-chunk ipi on day 5';
         Stats.mean1 = nanmean(D.within);
@@ -453,7 +455,7 @@ switch (what)
         % Kendall's tau
         data1 = nanmean(tWcorr,2);
         data2 = nanmean(tBcorr,2);
-        [t,p]=ttest_mc(data1, data2, 2,'paired');
+        [t,p]=ttest(data1, data2, 2,'paired');
         
         Stats.comparison{1,1} = 'Paired t-test for Kendall''s \tau (z-transformed)';
         Stats.mean1(1,1) = nanmean(data1);
@@ -467,7 +469,7 @@ switch (what)
         % Pearson's r
         data1 = nanmean(pWcorr,2);
         data2 = nanmean(pBcorr,2);
-        [t,p]=ttest_mc(data1, data2, 2,'paired');
+        [t,p]=ttest(data1, data2, 2,'paired');
         
         Stats.comparison{2,1} = 'Paired t-test for Pearson''s r (z-transformed)';
         Stats.mean1(2,1) = nanmean(data1);
@@ -588,7 +590,7 @@ switch (what)
         for seq=[1,2,4]
             c=c+1;
             subset = T.seqCat==seq;
-            [t,p]=ttest_mc(T.ipi_wChunk(subset),T.ipi_oChunk(subset),2,'paired');
+            [t,p]=ttest(T.ipi_wChunk(subset),T.ipi_oChunk(subset),2,'paired');
             
             Stats.comparison{c,1} = comparisons{c};
             Stats.mean1(c,1) = nanmean(T.ipi_wChunk(subset));
@@ -606,7 +608,7 @@ switch (what)
             {'ipi_oChunk','nanmean','subset',ismember(T.seqCat,[2,3,4]),'name','novel'}...
             );
         fprintf('---- ttest: nonchunk(trained) vs nonchunk(novel) ----\n');
-        [t,p]=ttest_mc(D.trained,D.novel,2,'paired');
+        [t,p]=ttest(D.trained,D.novel,2,'paired');
         
         Stats.comparison{end+1} = comparisons{end};
         Stats.mean1(end+1) = nanmean(D.trained);
@@ -693,7 +695,7 @@ switch (what)
         % ===================================== %
         for com=1:size(compidx,2)-1;
             beta = F.avrgbeta(:,com);
-            [t,p] = ttest_mc(beta,0,1,'onesample');
+            [t,p] = ttest(beta,0,1,'onesample');
             Stats.modelnum(com,1) = com;
             Stats.model{com,1} = Xname{com};
             Stats.Beta(com,1) = nanmean(beta);
