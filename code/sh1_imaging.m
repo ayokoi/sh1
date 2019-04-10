@@ -48,7 +48,7 @@ thisfile = mfilename('fullpath');
 baseDir = fullfile(fileparts(thisfile));
 dataDir = fullfile(baseDir,'../data');
 figDir = fullfile(baseDir,'../figure');
-p={fullfile(baseDir,'../code'), fullfile(baseDir,'../code/helper')};
+p={baseDir, fullfile(baseDir,'helper')};
 addpath(p{:}); % path to necessary functions
 
 % File structure
