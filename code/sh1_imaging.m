@@ -29,7 +29,7 @@ function varargout = sh1_imaging(what, varargin);
 %   - Dataframe toolbox (https://github.com/jdiedrichsen/dataframe)
 %   - PCM toolbox (https://githum.com/jdiedrichsen/pcm_toolbox)
 %   - Caret (http://brainvis.wustl.edu/wiki/index.php/Caret:About)
-% 
+%
 % Usage:
 %   - sh1_imaging(action, options)
 %   - action can be following string inputs;
@@ -58,6 +58,9 @@ dataDir = fullfile(baseDir,'../data');
 figDir = fullfile(baseDir,'../figure');
 p={baseDir, fullfile(baseDir,'helper')};
 addpath(p{:}); % path to necessary functions
+
+% set environmental variable for using caret binary code
+iscaretok=setCaret();
 
 % File structure
 F.dataDir = dataDir;
@@ -98,7 +101,14 @@ bgcolor = 'w'; % background color
 savefig = 0; % if save figure, set this to 1
 sulclabel = [1,0]; % labels for sulci, each hemisphere
 postfix = '';
-vararginoptions(varargin,{'bgcolor','savefig','sulclabel','postfix'});
+smoothing=1;
+vararginoptions(varargin,{'bgcolor','savefig','sulclabel','postfix','smoothing'});
+
+% turn smoothing off if we cannot find caret_command
+if ~iscaretok
+    smoothing=0;
+end
+
 switch lower(bgcolor)
     case {'w',[1,1,1]};
         bgcolor=[1,1,1];
@@ -162,7 +172,7 @@ switch (what)
         
         % map pxp and get mask
         patchdata = R.pxp;
-        nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+        nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',smoothing,'F',F);
         nodedatapxp(nodedatapxp<=0.75)=NaN;
         map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
             'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,...
@@ -170,7 +180,7 @@ switch (what)
         
         % map logBF (noise-ceiling)
         patchdata = R.noiseceiling;
-        nodedatabf = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+        nodedatabf = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',smoothing,'F',F);
         nodedatabf(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
         map_fsaverage(nodedatabf, F.coord, F.topo, F.shape, F.border,...
             'threshold', [1,10], 'MAP', 'jet','plotrange', plotrange,...
@@ -193,7 +203,7 @@ switch (what)
         for i=1:3
             % map pxp and get mask
             patchdata = R.pxp(:,i);
-            nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
+            nodedatapxp = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',smoothing);
             map_fsaverage(nodedatapxp, F.coord, F.topo, F.shape, F.border,...
                 'threshold', [0.75,1.0], 'MAP', 'autumn','plotrange', plotrange,...
                 'label',sprintf('PXP(%s)',models{i}),'bgcolor',bgcolor);
@@ -201,7 +211,7 @@ switch (what)
             % map logBF (noise-ceiling)
             patchdata = R.logBFc(:,i);
             %patchdata(R.pxp(:,i)<0.75)=-inf;
-            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',1);
+            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'F',F,'smooth',smoothing);
             nodedatabfc(nodedatapxp<=0.75) = NaN;
             map_fsaverage(nodedatabfc, F.coord, F.topo, F.shape, F.border,...
                 'threshold', [1,3], 'MAP', 'parula','plotrange', plotrange,...
@@ -224,10 +234,10 @@ switch (what)
         % do merged flatmap
         models = {'First-finger','Chunk','Sequence'};
         for i=1:3
-            nodedatapxp = assign_patch2node(R.pxp(:,i), R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+            nodedatapxp = assign_patch2node(R.pxp(:,i), R.hemis, R.patch, SLnodes,'smooth',smoothing,'F',F);
             % map logBF (noise-ceiling)
             patchdata = R.logBFc(:,i); %.*double(R.pxp(:,i)>0.75);
-            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',1,'F',F);
+            nodedatabfc = assign_patch2node(patchdata, R.hemis, R.patch, SLnodes,'smooth',smoothing,'F',F);
             nodedatabfc(nodedatapxp<=0.75)=NaN; % mask with pxp>0.75
             nodedata(:,:,i) = nodedatabfc;
         end
@@ -357,7 +367,7 @@ switch (what)
         % map
         load(F.p2n); % patch-node mapping
         for i=1:max(clusters)
-            nodedata(:,:,i) = assign_patch2node(double(clusters==i), Idx.hemis, Idx.patch, SLnodes,'smooth',1,'F',F);
+            nodedata(:,:,i) = assign_patch2node(double(clusters==i), Idx.hemis, Idx.patch, SLnodes,'smooth',smoothing,'F',F);
             MAPs{i} = repmat(colors(i,:),100,1);
             label{i} = num2str(clabel10(i));
         end
@@ -1214,4 +1224,22 @@ fprintf('Crit:%2.2f\n',criticalValue);
 fprintf('p-val:%f\n',pval);
 varargout = {G, pval, ExpCounts, counts};
 end
+function iscaretok = setCaret() % set path to caret
+caretpath='/Applications/caret/bin_macosx64'; % this needs to be adjusted for your environment
+iscaretok=1;
 
+path1 = getenv('PATH');
+add = [':', caretpath];
+if isempty(strfind(path1,add))
+    path1 = [path1, add];
+    setenv('PATH', path1);
+end
+% check if it works
+[status,result]=system('caret_command -help');
+if status~=0 % it works    
+    warning('Something is wrong with caret binary functions. %s. Smoothing option disabled.',result);    
+    % If you got this warning, you need to change the 'caretpath' which is defined 
+    % ~10 lines above. Also make sure to install the 'caret' first.
+    iscaretok=0;
+end
+end
