@@ -9,7 +9,9 @@ The following softwares/toolboxes need to be correctly installed to run the pres
 - Dataframe toolbox (https://github.com/jdiedrichsen/dataframe)
 - PCM toolbox (https://githum.com/jdiedrichsen/pcm_toolbox)
 - Caret (http://brainvis.wustl.edu/wiki/index.php/Caret:About)
- 
+
+Note also that I haven't tested if the code correctly works on PCs.
+
 ## Main functions to reproduce figures
 Here is a short summary of two main codes for reproducing behabioral and imaging figures. For more detail, see help messages for each function. 
  
