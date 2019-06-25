@@ -1,6 +1,7 @@
 # Hierarchical representations of motor sequences in the human neocortex: MATLAB codes and related data
 
-This repository contains MATLAB codes and related data to reproduce the Figures (except for schematics) and related analyses in Yokoi and Diedrichsen (2019) paper. Each sub-folders contains codes (`/code`), data (`/data`), and some resultant figures (`/figure`), respectively. To make the codes work, all the contents (i.e., `/code`, `/data`, and `/figure`) of this repository need to be downloaded.
+This repository contains MATLAB codes and related data to reproduce the Figures (except for schematics) and related analyses in Yokoi and Diedrichsen (2019) paper "Neural organization of hierarchical motor sequence representations in human neocortex
+" published in Neuron (doi here). Each sub-folders contains codes (`/code`), data (`/data`), and some resultant figures (`/figure`), respectively. To make the codes work, all the contents (i.e., `/code`, `/data`, and `/figure`) of this repository need to be downloaded.
 
 ## Dependency
 The following softwares/toolboxes need to be correctly installed to run the present codes.
